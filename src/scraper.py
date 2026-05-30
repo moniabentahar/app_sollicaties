@@ -11,76 +11,74 @@ FIRECRAWL_BASE = "https://api.firecrawl.dev/v2"
 RATE_LIMIT_DELAY = 2.5   # seconds between requests; respects Firecrawl free-tier limits
 MAX_RETRIES = 2
 
-# JSON schema sent to Firecrawl's LLM extract — no HTML parsing needed.
-_EXTRACT_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "jobs": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "title": {"type": "string"},
-                    "company": {"type": "string"},
-                    "location": {"type": "string"},
-                    "remote": {
-                        "type": "string",
-                        "enum": ["remote", "hybrid", "onsite", "unknown"],
+# Firecrawl v2: formats is an array of objects; 'json' type with schema does LLM extraction.
+# No separate extract key or systemPrompt — descriptions in the schema guide the LLM.
+_JSON_FORMAT = {
+    "type": "json",
+    "schema": {
+        "type": "object",
+        "properties": {
+            "jobs": {
+                "type": "array",
+                "description": "All job listings visible on this job search results page",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "title": {"type": "string", "description": "Job title"},
+                        "company": {"type": "string", "description": "Employer name"},
+                        "location": {"type": "string", "description": "City and/or country"},
+                        "remote": {
+                            "type": "string",
+                            "enum": ["remote", "hybrid", "onsite", "unknown"],
+                            "description": "remote=fully remote, hybrid=flexible, onsite=office-only, unknown=not stated",
+                        },
+                        "experience_level": {
+                            "type": "string",
+                            "description": "e.g. senior, mid-level, junior, director",
+                        },
+                        "languages": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Every language explicitly required or preferred",
+                        },
+                        "skills": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Key skills and competencies mentioned",
+                        },
+                        "posted_date": {
+                            "type": "string",
+                            "description": "When the role was posted, as written on the page",
+                        },
+                        "apply_url": {
+                            "type": "string",
+                            "description": "Direct link to the job detail or application page",
+                        },
+                        "description_summary": {
+                            "type": "string",
+                            "description": "2-3 sentence summary of the role responsibilities",
+                        },
                     },
-                    "experience_level": {"type": "string"},
-                    "languages": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "description": "All language requirements mentioned in the listing",
-                    },
-                    "skills": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "description": "Key skills and competencies listed",
-                    },
-                    "posted_date": {
-                        "type": "string",
-                        "description": "When the role was posted, as written on the page",
-                    },
-                    "apply_url": {
-                        "type": "string",
-                        "description": "Direct URL to apply or to the job detail page",
-                    },
-                    "description_summary": {
-                        "type": "string",
-                        "description": "2-3 sentence summary of the role responsibilities",
-                    },
+                    "required": ["title", "company"],
                 },
-                "required": ["title", "company", "location"],
-            },
-        }
+            }
+        },
+        "required": ["jobs"],
     },
-    "required": ["jobs"],
 }
 
-_EXTRACT_SYSTEM_PROMPT = (
-    "You are extracting job listings from a job board search results page. "
-    "Extract every visible job listing on the page. "
-    "For the 'remote' field: use 'remote' if fully remote, 'hybrid' if hybrid/flexible, "
-    "'onsite' if office-only, 'unknown' if not stated. "
-    "For 'languages': list every language explicitly required or preferred. "
-    "For 'apply_url': prefer the direct job-detail link over the search page URL."
-)
-
-# Search URLs per site — one entry per query variant.
-# LinkedIn experience filter: 4=Associate, 5=Mid-Senior, 6=Director
+# Search URLs per site. LinkedIn blocks all scrapers (403); replaced with Jobat.
 SITE_URLS: dict[str, list[str]] = {
-    "linkedin": [
-        "https://www.linkedin.com/jobs/search/?keywords=marketing+manager&location=Belgium&f_E=4%2C5%2C6",
-        "https://www.linkedin.com/jobs/search/?keywords=brand+manager&location=Belgium&f_E=4%2C5%2C6",
-        "https://www.linkedin.com/jobs/search/?keywords=head+of+marketing&location=Belgium&f_E=5%2C6",
-        "https://www.linkedin.com/jobs/search/?keywords=sponsorship+manager&location=Belgium",
-        "https://www.linkedin.com/jobs/search/?keywords=CMO+Belgium",
-        "https://www.linkedin.com/jobs/search/?keywords=marketing+director&location=Belgium&f_E=5%2C6",
+    "jobat": [
+        "https://www.jobat.be/nl/jobs/marketing-manager?location=belgie",
+        "https://www.jobat.be/nl/jobs/brand-manager?location=belgie",
+        "https://www.jobat.be/nl/jobs/hoofd-marketing?location=belgie",
+        "https://www.jobat.be/nl/jobs/marketing-director?location=belgie",
+        "https://www.jobat.be/nl/jobs/sponsorship-manager?location=belgie",
     ],
     "indeed": [
-        "https://be.indeed.com/jobs?q=marketing+manager&l=Belgium&sc=0kf%3Aexplvl%28SENIOR_LEVEL%29%3B",
-        "https://be.indeed.com/jobs?q=brand+manager&l=Belgium&sc=0kf%3Aexplvl%28SENIOR_LEVEL%29%3B",
+        "https://be.indeed.com/jobs?q=marketing+manager&l=Belgium",
+        "https://be.indeed.com/jobs?q=brand+manager&l=Belgium",
         "https://be.indeed.com/jobs?q=head+of+marketing&l=Belgium",
         "https://be.indeed.com/jobs?q=sponsorship+manager&l=Belgium",
         "https://be.indeed.com/jobs?q=marketing+director&l=Belgium",
@@ -92,11 +90,10 @@ SITE_URLS: dict[str, list[str]] = {
         "https://www.vdab.be/jobs?q=hoofd+marketing&regio=_belgie",
     ],
     "stepstone": [
-        "https://www.stepstone.be/nl/jobs/marketing-manager/?radius=100&location=Belgium",
-        "https://www.stepstone.be/nl/jobs/brand-manager/?radius=100&location=Belgium",
-        "https://www.stepstone.be/nl/jobs/head-of-marketing/?radius=100",
-        "https://www.stepstone.be/nl/jobs/sponsorship-manager/?radius=100",
-        "https://www.stepstone.be/nl/jobs/marketing-director/?radius=100",
+        "https://www.stepstone.be/nl/vacature-zoeken/marketing-manager/",
+        "https://www.stepstone.be/nl/vacature-zoeken/brand-manager/",
+        "https://www.stepstone.be/nl/vacature-zoeken/hoofd-marketing/",
+        "https://www.stepstone.be/nl/vacature-zoeken/marketing-director/",
     ],
     "wtj": [
         "https://www.welcometothejungle.com/en/jobs?refinementList%5Boffice_country_codes%5D%5B%5D=BE&query=marketing+manager",
@@ -117,15 +114,7 @@ class FirecrawlClient:
     def scrape_jobs(self, url: str, source_site: str) -> list[JobListing]:
         payload = {
             "url": url,
-            "formats": ["extract"],
-            "extract": {
-                "schema": _EXTRACT_SCHEMA,
-                "systemPrompt": _EXTRACT_SYSTEM_PROMPT,
-            },
-            "actions": [
-                # Accept cookie banners that would otherwise block content
-                {"type": "wait", "milliseconds": 2000},
-            ],
+            "formats": [_JSON_FORMAT],
         }
 
         for attempt in range(MAX_RETRIES):
@@ -156,7 +145,7 @@ class FirecrawlClient:
     def _parse(self, data: dict, source_site: str, fallback_url: str) -> list[JobListing]:
         try:
             raw_jobs: list[dict] = (
-                data.get("data", {}).get("extract", {}).get("jobs", [])
+                data.get("data", {}).get("json", {}).get("jobs", [])
             )
         except AttributeError:
             return []
@@ -211,7 +200,7 @@ def scrape_sites(
 
             for url in urls:
                 if verbose:
-                    print(f"  → {url}")
+                    print(f"  -> {url}")
                 listings = client.scrape_jobs(url, site)
                 new = 0
                 for listing in listings:

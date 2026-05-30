@@ -9,7 +9,8 @@ from rich.table import Table
 
 from src.models import ScoredListing
 
-console = Console()
+# On Windows 11, use modern terminal API (disable legacy CP1252 fallback)
+console = Console(legacy_windows=False)
 
 _TIER_COLOR = {"strong": "green", "consider": "yellow", "low": "dim white"}
 _TIER_LABEL = {

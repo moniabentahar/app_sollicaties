@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sollicitaties2026 — Job Scan Dashboard</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            display: ['"Space Grotesk"', 'Inter', 'sans-serif'],
+          },
+          colors: {
+            ink: '#14171f',
+            paper: '#f6f5f1',
+          },
+        },
+      },
+    };
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap"
+    rel="stylesheet" />
+
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+  <style>
+    :root {
+      --tier-strong: #16a34a;
+      --tier-consider: #d97706;
+      --tier-low: #64748b;
+    }
+    body { background-color: var(--paper, #f6f5f1); }
+    /* Subtle paper grain */
+    .grain::before {
+      content: "";
+      position: fixed; inset: 0;
+      pointer-events: none;
+      opacity: 0.025;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    }
+    [x-cloak] { display: none !important; }
+    .card-lift { transition: transform .18s cubic-bezier(.16,1,.3,1), box-shadow .18s ease; }
+    .card-lift:hover { transform: translateY(-3px); }
+    @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:.35} }
+    .live-dot { animation: pulse-dot 1.4s ease-in-out infinite; }
+  </style>
+</head>
+
+<body class="grain font-sans text-ink antialiased">
+<div x-data="dashboard()" x-init="init()" x-cloak class="min-h-screen">
+
+  <!-- ── Header ─────────────────────────────────────────────── -->
+  <header class="border-b border-ink/10 bg-paper/80 backdrop-blur sticky top-0 z-30">
+    <div class="mx-auto max-w-6xl px-5 py-4 flex flex-wrap items-center gap-4">
+      <div class="flex items-baseline gap-3">
+        <h1 class="font-display text-xl font-700 tracking-tight">Sollicitaties<span class="text-emerald-600">2026</span></h1>
+        <span class="hidden sm:inline text-xs text-ink/50" x-text="profile.name ? 'for ' + profile.name : ''"></span>
+      </div>
+
+      <div class="ml-auto flex items-center gap-3">
+        <span x-show="scanning" class="flex items-center gap-2 text-xs font-500 text-amber-600">
+          <span class="live-dot h-2 w-2 rounded-full bg-amber-500"></span> scanning…
+        </span>
+        <select x-show="scans.length > 1" x-model="selectedFile" @change="loadScan(selectedFile)"
+          class="text-xs rounded-lg border border-ink/15 bg-white px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-500/40">
+          <template x-for="s in scans" :key="s.name">
+            <option :value="s.name" x-text="s.stem"></option>
+          </template>
+        </select>
+        <button @click="runScan()" :disabled="scanning"
+          class="rounded-lg bg-ink px-4 py-2 text-sm font-600 text-paper hover:bg-ink/85 disabled:opacity-40 disabled:cursor-not-allowed transition">
+          <span x-text="scanning ? 'Running…' : 'New scan'"></span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="mx-auto max-w-6xl px-5 py-8">
+
+    <!-- ── Stats bar ───────────────────────────────────────── -->
+    <section class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
+      <template x-for="stat in statCards" :key="stat.key">
+        <button @click="filterTier = (filterTier === stat.tier ? 'all' : stat.tier)"
+          class="card-lift text-left rounded-2xl border bg-white p-4 shadow-sm hover:shadow-md"
+          :class="filterTier === stat.tier ? 'border-ink ring-2 ring-ink/10' : 'border-ink/10'">
+          <div class="flex items-center justify-between">
+            <span class="text-3xl font-display font-700 tabular-nums" :style="`color:${stat.color}`" x-text="stat.value"></span>
+            <span class="h-2.5 w-2.5 rounded-full" :style="`background:${stat.color}`"></span>
+          </div>
+          <p class="mt-1 text-xs font-600 uppercase tracking-wide text-ink/50" x-text="stat.label"></p>
+        </button>
+      </template>
+    </section>
+
+    <!-- ── Filter row ──────────────────────────────────────── -->
+    <section class="mb-6 flex flex-wrap items-center gap-2">
+      <input type="search" x-model="query" placeholder="Search title, company, location…"
+        class="flex-1 min-w-[220px] rounded-lg border border-ink/15 bg-white px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40" />
+
+      <div class="flex gap-1 rounded-lg border border-ink/15 bg-white p-1">
+        <template x-for="t in ['all','strong','consider','low']" :key="t">
+          <button @click="filterTier = t"
+            class="rounded-md px-3 py-1.5 text-xs font-600 capitalize transition"
+            :class="filterTier === t ? 'bg-ink text-paper' : 'text-ink/60 hover:text-ink'"
+            x-text="t"></button>
+        </template>
+      </div>
+
+      <select x-model="filterSite"
+        class="rounded-lg border border-ink/15 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40">
+        <option value="all">All sites</option>
+        <template x-for="site in sites" :key="site">
+          <option :value="site" x-text="site"></option>
+        </template>
+      </select>
+    </section>
+
+    <!-- ── Empty / loading states ─────────────────────────── -->
+    <div x-show="!loading && listings.length === 0" class="rounded-2xl border border-dashed border-ink/20 bg-white/50 p-12 text-center">
+      <p class="font-display text-lg font-600">No scans yet</p>
+      <p class="mt-1 text-sm text-ink/50">Hit <span class="font-600">New scan</span> to fetch and score fresh vacancies.</p>
+    </div>
+
+    <div x-show="loading" class="space-y-3">
+      <template x-for="i in 4" :key="i">
+        <div class="h-24 animate-pulse rounded-2xl bg-ink/5"></div>
+      </template>
+    </div>
+
+    <!-- ── Listings ───────────────────────────────────────── -->
+    <section x-show="!loading" class="space-y-3">
+      <p class="text-xs text-ink/40 mb-1" x-show="listings.length"
+         x-text="`${filtered.length} of ${listings.length} listings` + (currentFile ? ' · ' + currentFile : '')"></p>
+
+      <template x-for="job in filtered" :key="job.title + job.company + job.apply_url">
+        <article class="card-lift rounded-2xl border border-ink/10 bg-white p-4 shadow-sm hover:shadow-md"
+          :style="`border-left:4px solid ${tierColor(job.tier)}`">
+          <div class="flex flex-wrap items-start gap-3">
+
+            <!-- Score badge -->
+            <div class="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-xl text-white"
+                 :style="`background:${tierColor(job.tier)}`">
+              <span class="font-display text-lg font-700 leading-none tabular-nums" x-text="job.score"></span>
+              <span class="text-[9px] uppercase tracking-wide opacity-80">score</span>
+            </div>
+
+            <!-- Main -->
+            <div class="min-w-0 flex-1">
+              <div class="flex flex-wrap items-center gap-2">
+                <h3 class="font-display text-base font-700 leading-tight" x-text="job.title"></h3>
+                <span class="rounded-full px-2 py-0.5 text-[10px] font-700 uppercase tracking-wide"
+                      :style="`background:${tierColor(job.tier)}1a;color:${tierColor(job.tier)}`"
+                      x-text="job.tier"></span>
+              </div>
+
+              <p class="mt-0.5 text-sm text-ink/70">
+                <span class="font-600" x-text="job.company"></span>
+                <span class="text-ink/40"> · </span><span x-text="job.location || '—'"></span>
+                <template x-if="job.remote && job.remote !== 'unknown'">
+                  <span><span class="text-ink/40"> · </span><span class="capitalize" x-text="job.remote"></span></span>
+                </template>
+              </p>
+
+              <!-- Flags -->
+              <div class="mt-2 flex flex-wrap gap-1.5" x-show="job.flags && job.flags.length">
+                <template x-for="flag in job.flags" :key="flag">
+                  <span class="rounded-md bg-ink/5 px-2 py-0.5 text-[11px] font-500 text-ink/70" x-text="flag"></span>
+                </template>
+              </div>
+
+              <!-- Skills -->
+              <div class="mt-1.5 flex flex-wrap gap-1.5" x-show="job.skills && job.skills.length">
+                <template x-for="skill in job.skills.slice(0,6)" :key="skill">
+                  <span class="rounded-md border border-emerald-600/20 bg-emerald-50 px-2 py-0.5 text-[11px] font-500 text-emerald-700" x-text="skill"></span>
+                </template>
+              </div>
+            </div>
+
+            <!-- Meta + CTA -->
+            <div class="flex shrink-0 flex-col items-end gap-2">
+              <span class="rounded-md bg-ink/5 px-2 py-0.5 text-[11px] font-600 text-ink/50" x-text="job.source_site"></span>
+              <a x-show="job.apply_url" :href="job.apply_url" target="_blank" rel="noopener"
+                 class="rounded-lg border border-ink/15 px-3 py-1.5 text-xs font-600 text-ink hover:bg-ink hover:text-paper transition">
+                Apply ↗
+              </a>
+            </div>
+          </div>
+
+          <!-- Summary -->
+          <p x-show="job.description_summary" class="mt-3 border-t border-ink/5 pt-2.5 text-xs leading-relaxed text-ink/55"
+             x-text="job.description_summary"></p>
+        </article>
+      </template>
+
+      <div x-show="listings.length && filtered.length === 0" class="rounded-2xl border border-dashed border-ink/20 p-8 text-center text-sm text-ink/50">
+        No listings match these filters.
+      </div>
+    </section>
+  </main>
+
+  <footer class="mx-auto max-w-6xl px-5 py-8 text-center text-xs text-ink/35">
+    Sollicitaties2026 · scored against
+    <span x-text="profile.target_titles ? profile.target_titles.length : 0"></span> target roles ·
+    <span x-text="profile.core_skills ? profile.core_skills.length : 0"></span> core skills
+  </footer>
+</div>
+
+<script>
+  function dashboard() {
+    return {
+      profile: {},
+      listings: [],
+      scans: [],
+      selectedFile: '',
+      currentFile: '',
+      loading: true,
+      scanning: false,
+      query: '',
+      filterTier: 'all',
+      filterSite: 'all',
+      _poll: null,
+
+      async init() {
+        await Promise.all([this.loadProfile(), this.loadScans()]);
+        await this.loadLatest();
+        this.loading = false;
+      },
+
+      async loadProfile() {
+        try { this.profile = await (await fetch('/api/profile')).json(); }
+        catch (e) { console.error('profile', e); }
+      },
+
+      async loadScans() {
+        try {
+          this.scans = await (await fetch('/api/scans')).json();
+          if (this.scans.length) this.selectedFile = this.scans[0].name;
+        } catch (e) { console.error('scans', e); }
+      },
+
+      async loadLatest() {
+        try {
+          const data = await (await fetch('/api/scan/latest')).json();
+          this.listings = data.listings || [];
+          this.currentFile = data.file || '';
+        } catch (e) { console.error('latest', e); }
+      },
+
+      async loadScan(name) {
+        if (!name) return;
+        this.loading = true;
+        try {
+          const data = await (await fetch('/api/scan/' + encodeURIComponent(name))).json();
+          this.listings = data.listings || [];
+          this.currentFile = data.file || name;
+        } catch (e) { console.error('scan', e); }
+        this.loading = false;
+      },
+
+      async runScan() {
+        if (this.scanning) return;
+        try {
+          const res = await fetch('/api/scan/run', { method: 'POST' });
+          if (res.status === 409) { this.scanning = true; this.pollStatus(); return; }
+          if (!res.ok) throw new Error('scan failed to start');
+          this.scanning = true;
+          this.pollStatus();
+        } catch (e) { console.error('runScan', e); alert('Could not start scan.'); }
+      },
+
+      pollStatus() {
+        clearInterval(this._poll);
+        this._poll = setInterval(async () => {
+          try {
+            const { running } = await (await fetch('/api/scan/status')).json();
+            if (!running) {
+              clearInterval(this._poll);
+              this.scanning = false;
+              await this.loadScans();
+              await this.loadLatest();
+            }
+          } catch (e) { clearInterval(this._poll); this.scanning = false; }
+        }, 2500);
+      },
+
+      tierColor(tier) {
+        return { strong: '#16a34a', consider: '#d97706', low: '#64748b' }[tier] || '#64748b';
+      },
+
+      get sites() {
+        return [...new Set(this.listings.map(l => l.source_site).filter(Boolean))].sort();
+      },
+
+      get statCards() {
+        const c = t => this.listings.filter(l => l.tier === t).length;
+        return [
+          { key: 'total',    tier: 'all',      label: 'Total',    value: this.listings.length, color: '#14171f' },
+          { key: 'strong',   tier: 'strong',   label: 'Strong',   value: c('strong'),          color: '#16a34a' },
+          { key: 'consider', tier: 'consider', label: 'Consider', value: c('consider'),        color: '#d97706' },
+          { key: 'low',      tier: 'low',      label: 'Low',      value: c('low'),             color: '#64748b' },
+        ];
+      },
+
+      get filtered() {
+        const q = this.query.trim().toLowerCase();
+        return this.listings.filter(l => {
+          if (this.filterTier !== 'all' && l.tier !== this.filterTier) return false;
+          if (this.filterSite !== 'all' && l.source_site !== this.filterSite) return false;
+          if (q) {
+            const hay = `${l.title} ${l.company} ${l.location}`.toLowerCase();
+            if (!hay.includes(q)) return false;
+          }
+          return true;
+        });
+      },
+    };
+  }
+</script>
+</body>
+</html>
