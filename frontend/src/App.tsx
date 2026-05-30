@@ -1,0 +1,622 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { Search, RefreshCw, ExternalLink, CheckCircle2 } from "lucide-react"
+
+import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
+import { JobDetailDialog } from "@/components/JobDetailDialog"
+import { CoverLetterDialog } from "@/components/CoverLetterDialog"
+import {
+  api,
+  formatAppliedDate,
+  listingKey,
+  tierColor,
+  tierLabel,
+  type Application,
+  type Listing,
+  type Profile,
+  type Scan,
+  type Tier,
+} from "@/lib/api"
+
+const TIER_FILTERS: Array<{ value: Tier | "all"; label: string }> = [
+  { value: "all", label: "Alle" },
+  { value: "strong", label: "Sterk" },
+  { value: "consider", label: "Overweeg" },
+  { value: "low", label: "Laag" },
+]
+
+const POLL_INTERVAL_MS = 2500
+
+const SCAN_STARTED_MESSAGE =
+  "Scan gestart! 🚀\n\n" +
+  "Let op: een volledige scan doorzoekt meer dan 30 vacaturesites. Om blokkades te " +
+  "vermijden pauzeren we tussen de verzoeken, dus een volledige scan duurt ongeveer 2 à 3 minuten.\n\n" +
+  "Je mag deze pagina open laten; ze wordt automatisch bijgewerkt zodra de scan klaar is."
+
+const SCAN_DONE_MESSAGE = "Scan voltooid! 🎉\n\nHet dashboard is bijgewerkt met de nieuwste resultaten."
+
+export default function App() {
+  const [profile, setProfile] = useState<Profile | null>(null)
+  const [listings, setListings] = useState<Listing[]>([])
+  const [scans, setScans] = useState<Scan[]>([])
+  const [applications, setApplications] = useState<Application[]>([])
+  const [selectedFile, setSelectedFile] = useState("")
+  const [currentFile, setCurrentFile] = useState("")
+  const [loading, setLoading] = useState(true)
+  const [scanning, setScanning] = useState(false)
+
+  const [query, setQuery] = useState("")
+  const [filterTier, setFilterTier] = useState<Tier | "all">("all")
+  const [filterSite, setFilterSite] = useState("all")
+  const [tab, setTab] = useState<"listings" | "applied">("listings")
+
+  const [detailJob, setDetailJob] = useState<Listing | null>(null)
+  const [detailOpen, setDetailOpen] = useState(false)
+
+  const [letterJob, setLetterJob] = useState<Listing | null>(null)
+  const [letterOpen, setLetterOpen] = useState(false)
+  const [letterText, setLetterText] = useState("")
+  const [letterLoading, setLetterLoading] = useState(false)
+
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const refreshApplications = useCallback(async () => {
+    try {
+      setApplications(await api.applications())
+    } catch (e) {
+      console.error("applications", e)
+    }
+  }, [])
+
+  const loadLatest = useCallback(async () => {
+    try {
+      const data = await api.latest()
+      setListings(data.listings)
+      setCurrentFile(data.file ?? "")
+    } catch (e) {
+      console.error("latest", e)
+    }
+  }, [])
+
+  const loadScans = useCallback(async () => {
+    try {
+      const data = await api.scans()
+      setScans(data)
+      if (data.length) setSelectedFile((prev) => prev || data[0].name)
+    } catch (e) {
+      console.error("scans", e)
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    async function init() {
+      const [prof] = await Promise.allSettled([
+        api.profile(),
+        loadScans(),
+        refreshApplications(),
+      ])
+      if (!cancelled && prof.status === "fulfilled") setProfile(prof.value)
+      await loadLatest()
+      if (!cancelled) setLoading(false)
+    }
+    void init()
+    return () => {
+      cancelled = true
+      if (pollRef.current) clearInterval(pollRef.current)
+    }
+  }, [loadScans, loadLatest, refreshApplications])
+
+  const startPolling = useCallback(() => {
+    if (pollRef.current) clearInterval(pollRef.current)
+    pollRef.current = setInterval(async () => {
+      try {
+        const { running } = await api.status()
+        if (!running) {
+          if (pollRef.current) clearInterval(pollRef.current)
+          setScanning(false)
+          await loadScans()
+          await loadLatest()
+          window.alert(SCAN_DONE_MESSAGE)
+        }
+      } catch {
+        if (pollRef.current) clearInterval(pollRef.current)
+        setScanning(false)
+      }
+    }, POLL_INTERVAL_MS)
+  }, [loadScans, loadLatest])
+
+  async function handleRunScan() {
+    if (scanning) return
+    try {
+      const result = await api.runScan()
+      setScanning(true)
+      if (result === "started") window.alert(SCAN_STARTED_MESSAGE)
+      startPolling()
+    } catch (e) {
+      console.error("runScan", e)
+      window.alert("Kon de scan niet starten. Draait de server?")
+    }
+  }
+
+  async function handleLoadScan(name: string) {
+    if (!name) return
+    setSelectedFile(name)
+    setLoading(true)
+    try {
+      const data = await api.scan(name)
+      setListings(data.listings)
+      setCurrentFile(data.file ?? name)
+    } catch (e) {
+      console.error("scan", e)
+    }
+    setLoading(false)
+  }
+
+  const appliedKeys = useMemo(
+    () => new Set(applications.map((a) => listingKey(a))),
+    [applications],
+  )
+
+  const isApplied = useCallback(
+    (job: Listing) => appliedKeys.has(listingKey(job)),
+    [appliedKeys],
+  )
+
+  async function handleToggleApplied(job: Listing) {
+    try {
+      if (isApplied(job)) {
+        const match = applications.find((a) => listingKey(a) === listingKey(job))
+        if (match) await api.deleteApplication(match.job_id)
+      } else {
+        await api.saveApplication(job)
+      }
+      await refreshApplications()
+    } catch (e) {
+      console.error("toggleApplied", e)
+    }
+  }
+
+  async function handleGenerateLetter(job: Listing) {
+    setLetterJob(job)
+    setLetterText("")
+    setLetterLoading(true)
+    setLetterOpen(true)
+    try {
+      setLetterText(await api.generateLetter(job))
+    } catch (e) {
+      console.error("generateLetter", e)
+      setLetterText("Kon de brief niet genereren. Probeer het opnieuw.")
+    }
+    setLetterLoading(false)
+  }
+
+  function openDetail(job: Listing) {
+    setDetailJob(job)
+    setDetailOpen(true)
+  }
+
+  const sites = useMemo(
+    () =>
+      [...new Set(listings.map((l) => l.source_site).filter(Boolean) as string[])].sort(),
+    [listings],
+  )
+
+  const tierCount = useCallback(
+    (t: Tier) => listings.filter((l) => l.tier === t).length,
+    [listings],
+  )
+
+  const statCards = useMemo(
+    () => [
+      { tier: "all" as const, label: "Totaal", value: listings.length, color: "var(--foreground)" },
+      { tier: "strong" as const, label: "Sterk", value: tierCount("strong"), color: tierColor("strong") },
+      { tier: "consider" as const, label: "Overweeg", value: tierCount("consider"), color: tierColor("consider") },
+      { tier: "low" as const, label: "Laag", value: tierCount("low"), color: tierColor("low") },
+    ],
+    [listings.length, tierCount],
+  )
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    return listings.filter((l) => {
+      if (filterTier !== "all" && l.tier !== filterTier) return false
+      if (filterSite !== "all" && l.source_site !== filterSite) return false
+      if (q) {
+        const hay = `${l.title} ${l.company} ${l.location ?? ""}`.toLowerCase()
+        if (!hay.includes(q)) return false
+      }
+      return true
+    })
+  }, [listings, query, filterTier, filterSite])
+
+  return (
+    <div className="grain relative min-h-screen">
+      {/* Header */}
+      <header className="sticky top-0 z-30 border-b bg-background/80 backdrop-blur">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-4 px-5 py-4">
+          <div className="flex items-baseline gap-3">
+            <h1 className="font-display text-xl font-bold tracking-tight">
+              Sollicitaties<span className="text-accent">2026</span>
+            </h1>
+            {profile?.name && (
+              <span className="hidden text-xs text-muted-foreground sm:inline">
+                voor {profile.name}
+              </span>
+            )}
+          </div>
+
+          <div className="ml-auto flex items-center gap-3">
+            {scanning && (
+              <span className="flex items-center gap-2 text-xs font-medium text-amber-600">
+                <span className="live-dot h-2 w-2 rounded-full bg-amber-500" /> scannen…
+              </span>
+            )}
+            {scans.length > 1 && (
+              <select
+                value={selectedFile}
+                onChange={(e) => handleLoadScan(e.target.value)}
+                className="rounded-lg border border-input bg-card px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-ring/40"
+              >
+                {scans.map((s) => (
+                  <option key={s.name} value={s.name}>
+                    {s.stem}
+                  </option>
+                ))}
+              </select>
+            )}
+            <Button onClick={handleRunScan} disabled={scanning}>
+              <RefreshCw className={scanning ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
+              {scanning ? "Bezig…" : "Nieuwe scan"}
+            </Button>
+          </div>
+        </div>
+      </header>
+
+      <main className="relative z-10 mx-auto max-w-6xl px-5 py-8">
+        {/* Stat cards */}
+        <section className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {statCards.map((stat) => {
+            const active = filterTier === stat.tier
+            return (
+              <button
+                key={stat.tier}
+                onClick={() =>
+                  setFilterTier((prev) => (prev === stat.tier ? "all" : (stat.tier as Tier | "all")))
+                }
+                className={`card-lift rounded-2xl border bg-card p-4 text-left shadow-sm hover:shadow-md ${
+                  active ? "border-foreground ring-2 ring-foreground/10" : "border-border"
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span
+                    className="font-display text-3xl font-bold tabular-nums"
+                    style={{ color: stat.color }}
+                  >
+                    {stat.value}
+                  </span>
+                  <span className="h-2.5 w-2.5 rounded-full" style={{ background: stat.color }} />
+                </div>
+                <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  {stat.label}
+                </p>
+              </button>
+            )
+          })}
+        </section>
+
+        {/* Tabs */}
+        <div className="mb-6 flex gap-1 rounded-lg border border-input bg-card p-1 sm:w-fit">
+          <button
+            onClick={() => setTab("listings")}
+            className={`flex-1 rounded-md px-4 py-1.5 text-sm font-semibold transition sm:flex-none ${
+              tab === "listings" ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Vacatures
+          </button>
+          <button
+            onClick={() => setTab("applied")}
+            className={`flex-1 rounded-md px-4 py-1.5 text-sm font-semibold transition sm:flex-none ${
+              tab === "applied" ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Gesolliciteerd
+            {applications.length > 0 && (
+              <span className="ml-1.5 rounded-full bg-accent/15 px-1.5 py-0.5 text-[11px] text-accent">
+                {applications.length}
+              </span>
+            )}
+          </button>
+        </div>
+
+        {tab === "listings" ? (
+          <>
+            {/* Filters */}
+            <section className="mb-6 flex flex-wrap items-center gap-2">
+              <div className="relative min-w-[220px] flex-1">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  type="search"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Zoek op functie, bedrijf, locatie…"
+                  className="w-full rounded-lg border border-input bg-card py-2 pl-9 pr-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring/40"
+                />
+              </div>
+
+              <div className="flex gap-1 rounded-lg border border-input bg-card p-1">
+                {TIER_FILTERS.map((t) => (
+                  <button
+                    key={t.value}
+                    onClick={() => setFilterTier(t.value)}
+                    className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${
+                      filterTier === t.value
+                        ? "bg-foreground text-background"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+
+              <select
+                value={filterSite}
+                onChange={(e) => setFilterSite(e.target.value)}
+                className="rounded-lg border border-input bg-card px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring/40"
+              >
+                <option value="all">Alle sites</option>
+                {sites.map((site) => (
+                  <option key={site} value={site}>
+                    {site}
+                  </option>
+                ))}
+              </select>
+            </section>
+
+            {/* States */}
+            {loading ? (
+              <div className="space-y-3">
+                {[0, 1, 2, 3].map((i) => (
+                  <Skeleton key={i} className="h-24 rounded-2xl" />
+                ))}
+              </div>
+            ) : listings.length === 0 ? (
+              <EmptyState
+                title="Nog geen scans"
+                body="Klik op Nieuwe scan om verse vacatures op te halen en te scoren."
+              />
+            ) : (
+              <section className="space-y-3">
+                <p className="mb-1 text-xs text-muted-foreground">
+                  {filtered.length} van {listings.length} vacatures
+                  {currentFile ? ` · ${currentFile}` : ""}
+                </p>
+                {filtered.map((job) => (
+                  <JobCard
+                    key={listingKey(job)}
+                    job={job}
+                    applied={isApplied(job)}
+                    onOpen={() => openDetail(job)}
+                  />
+                ))}
+                {filtered.length === 0 && (
+                  <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+                    Geen vacatures komen overeen met deze filters.
+                  </div>
+                )}
+              </section>
+            )}
+          </>
+        ) : (
+          <AppliedList
+            applications={applications}
+            onOpen={openDetail}
+            onRemove={(a) => handleToggleApplied(a)}
+          />
+        )}
+      </main>
+
+      <footer className="relative z-10 mx-auto max-w-6xl px-5 py-8 text-center text-xs text-muted-foreground/70">
+        Sollicitaties2026 · gescoord tegen {profile?.target_titles?.length ?? 0} doelfuncties ·{" "}
+        {profile?.core_skills?.length ?? 0} kernvaardigheden
+      </footer>
+
+      <JobDetailDialog
+        job={detailJob}
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        applied={detailJob ? isApplied(detailJob) : false}
+        onGenerateLetter={handleGenerateLetter}
+        onToggleApplied={handleToggleApplied}
+      />
+
+      <CoverLetterDialog
+        open={letterOpen}
+        onOpenChange={setLetterOpen}
+        job={letterJob}
+        letter={letterText}
+        loading={letterLoading}
+        onLetterChange={setLetterText}
+      />
+    </div>
+  )
+}
+
+function EmptyState({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="rounded-2xl border border-dashed border-border bg-card/50 p-12 text-center">
+      <p className="font-display text-lg font-semibold">{title}</p>
+      <p className="mt-1 text-sm text-muted-foreground">{body}</p>
+    </div>
+  )
+}
+
+interface JobCardProps {
+  job: Listing
+  applied: boolean
+  onOpen: () => void
+}
+
+function JobCard({ job, applied, onOpen }: JobCardProps) {
+  const color = tierColor(job.tier)
+  return (
+    <article
+      onClick={onOpen}
+      className="card-lift cursor-pointer rounded-2xl border border-border bg-card p-4 shadow-sm hover:shadow-md"
+      style={{ borderLeft: `4px solid ${color}` }}
+    >
+      <div className="flex flex-wrap items-start gap-3">
+        <div
+          className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-xl text-white"
+          style={{ background: color }}
+        >
+          <span className="font-display text-lg font-bold leading-none tabular-nums">{job.score}</span>
+          <span className="text-[9px] uppercase tracking-wide opacity-80">score</span>
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="font-display text-base font-bold leading-tight">{job.title}</h3>
+            <span
+              className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+              style={{ background: `color-mix(in oklab, ${color} 12%, transparent)`, color }}
+            >
+              {tierLabel(job.tier)}
+            </span>
+            {applied && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-accent/12 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent">
+                <CheckCircle2 className="h-3 w-3" /> Gesolliciteerd
+              </span>
+            )}
+          </div>
+
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            <span className="font-semibold text-foreground">{job.company}</span>
+            {" · "}
+            {job.location || "—"}
+            {job.remote && job.remote !== "unknown" ? ` · ${job.remote}` : ""}
+          </p>
+
+          {job.flags && job.flags.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {job.flags.map((flag) => (
+                <span key={flag} className="rounded-md bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                  {flag}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {job.skills && job.skills.length > 0 && (
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {job.skills.slice(0, 6).map((skill) => (
+                <span
+                  key={skill}
+                  className="rounded-md border border-accent/25 bg-accent/10 px-2 py-0.5 text-[11px] font-medium text-accent"
+                >
+                  {skill}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex shrink-0 flex-col items-end gap-2">
+          {job.source_site && (
+            <span className="rounded-md bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
+              {job.source_site}
+            </span>
+          )}
+          {job.apply_url && (
+            <a
+              href={job.apply_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="inline-flex items-center gap-1 rounded-lg border border-input px-3 py-1.5 text-xs font-semibold transition hover:bg-foreground hover:text-background"
+            >
+              Solliciteer <ExternalLink className="h-3.5 w-3.5" />
+            </a>
+          )}
+        </div>
+      </div>
+
+      {job.description_summary && (
+        <p className="mt-3 border-t border-border/60 pt-2.5 text-xs leading-relaxed text-muted-foreground">
+          {job.description_summary}
+        </p>
+      )}
+    </article>
+  )
+}
+
+interface AppliedListProps {
+  applications: Application[]
+  onOpen: (job: Listing) => void
+  onRemove: (job: Application) => void
+}
+
+function AppliedList({ applications, onOpen, onRemove }: AppliedListProps) {
+  if (applications.length === 0) {
+    return (
+      <EmptyState
+        title="Nog niets gesolliciteerd"
+        body="Open een vacature en markeer ze als gesolliciteerd om ze hier bij te houden."
+      />
+    )
+  }
+  return (
+    <section className="space-y-3">
+      {applications.map((app) => {
+        const color = tierColor(app.tier)
+        return (
+          <article
+            key={app.job_id}
+            className="card-lift rounded-2xl border border-border bg-card p-4 shadow-sm hover:shadow-md"
+            style={{ borderLeft: `4px solid ${color}` }}
+          >
+            <div className="flex flex-wrap items-start gap-3">
+              <div className="min-w-0 flex-1 cursor-pointer" onClick={() => onOpen(app)}>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="font-display text-base font-bold leading-tight">{app.title}</h3>
+                  <span
+                    className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+                    style={{ background: `color-mix(in oklab, ${color} 12%, transparent)`, color }}
+                  >
+                    {tierLabel(app.tier)}
+                  </span>
+                </div>
+                <p className="mt-0.5 text-sm text-muted-foreground">
+                  <span className="font-semibold text-foreground">{app.company}</span>
+                  {" · "}
+                  {app.location || "—"}
+                </p>
+                <p className="mt-1 text-xs text-accent">
+                  Gesolliciteerd op {formatAppliedDate(app.applied_date)}
+                </p>
+              </div>
+
+              <div className="flex shrink-0 flex-col items-end gap-2">
+                {app.apply_url && (
+                  <a
+                    href={app.apply_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 rounded-lg border border-input px-3 py-1.5 text-xs font-semibold transition hover:bg-foreground hover:text-background"
+                  >
+                    Bekijk <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
+                )}
+                <Button variant="ghost" size="sm" onClick={() => onRemove(app)}>
+                  Verwijderen
+                </Button>
+              </div>
+            </div>
+          </article>
+        )
+      })}
+    </section>
+  )
+}

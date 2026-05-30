@@ -22,3 +22,11 @@ env/
 # IDE
 .vscode/
 .idea/
+
+# Frontend (Node / Vite)
+frontend/node_modules/
+frontend/.vite/
+*.tsbuildinfo
+
+# Runtime data
+docs/applied_jobs.json
