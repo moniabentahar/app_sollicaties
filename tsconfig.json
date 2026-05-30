@@ -20,6 +20,8 @@
     "noUnusedParameters": false,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
     "paths": {
       "@/*": ["./src/*"]
     }
