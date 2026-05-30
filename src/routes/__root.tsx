@@ -77,13 +77,17 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Sollicitaties2026 — Job Scan Dashboard" },
-      { name: "description", content: "Ranked marketing job listings for the candidate — Belgium 2026." },
+      { title: "Sollicitaties2026" },
+      { name: "description", content: "Sollicitaties_app is a web application for managing job applications and tracking their progress." },
       { property: "og:title", content: "Sollicitaties2026" },
-      { property: "og:description", content: "Ranked marketing job listings for the candidate." },
+      { property: "og:description", content: "Sollicitaties_app is a web application for managing job applications and tracking their progress." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:title", content: "Sollicitaties2026" },
+      { name: "twitter:description", content: "Sollicitaties_app is a web application for managing job applications and tracking their progress." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/7a4084d2-cbff-4a6f-82d7-c6177f3dd5e0/id-preview-bb28e379--13cbc65e-3670-4487-8ad0-a840c5e4d814.lovable.app-1780148683630.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/7a4084d2-cbff-4a6f-82d7-c6177f3dd5e0/id-preview-bb28e379--13cbc65e-3670-4487-8ad0-a840c5e4d814.lovable.app-1780148683630.png" },
     ],
     links: [
       {
