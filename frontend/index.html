@@ -271,8 +271,9 @@
           if (res.status === 409) { this.scanning = true; this.pollStatus(); return; }
           if (!res.ok) throw new Error('scan failed to start');
           this.scanning = true;
+          alert("Scan started successfully! 🚀\n\nPlease note: A full scan checks over 30 job sites. To avoid being blocked, we pause between requests, so a full scan takes about 2 to 3 minutes.\n\nYou can keep this page open; it will update automatically when finished.");
           this.pollStatus();
-        } catch (e) { console.error('runScan', e); alert('Could not start scan.'); }
+        } catch (e) { console.error('runScan', e); alert('Could not start scan. Is the server running?'); }
       },
 
       pollStatus() {
@@ -285,6 +286,7 @@
               this.scanning = false;
               await this.loadScans();
               await this.loadLatest();
+              alert("Scan complete! 🎉\n\nThe dashboard has been updated with the latest results.");
             }
           } catch (e) { clearInterval(this._poll); this.scanning = false; }
         }, 2500);

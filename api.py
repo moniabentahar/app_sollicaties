@@ -118,7 +118,8 @@ async def _run_scan(site: str | None, min_score: int) -> None:
     global _scan_running
     _scan_running = True
     try:
-        args = ["python", "main.py", "run", "--min-score", str(min_score)]
+        import sys
+        args = [sys.executable, "main.py", "run", "--min-score", str(min_score)]
         if site:
             args += ["--site", site]
         # Force UTF-8 in the child so Rich's CSV-saved banner (→, ≥, …) does not
