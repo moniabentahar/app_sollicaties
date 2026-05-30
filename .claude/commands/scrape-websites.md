@@ -1,0 +1,1 @@
+Use the `scrape-websites` skill to scrape the requested website(s) using Firecrawl. Follow the decision tree in the skill: search first if no URL is given, plain scrape if a URL is known, interact if the page needs clicks. Save all output under docs/.
