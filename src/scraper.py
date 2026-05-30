@@ -67,8 +67,32 @@ _JSON_FORMAT = {
     },
 }
 
-# Search URLs per site. LinkedIn blocks all scrapers (403); replaced with Jobat.
+# ---------------------------------------------------------------------------
+# Search URLs per site — Belgian job market only (see .claude/skills/belgische-jobsites/SKILL.md)
+# LinkedIn blocks all scrapers (403); use manually via browser.
+# ---------------------------------------------------------------------------
+
+# Categorised site groups for selective scanning
+CATEGORY_MUST_HAVE = ["jobat", "indeed", "vdab", "stepstone"]
+CATEGORY_SENIOR = ["michaelpage", "robertwalters", "hudson", "hays"]
+CATEGORY_INTERIM = ["mindsandmore", "roberthalf", "randstad", "adecco"]
+CATEGORY_MARKETING = ["bloovi", "brightplus"]
+CATEGORY_SPORT = ["sportcareers", "golazo"]
+CATEGORY_OVERHEID = ["werkenvoor", "vlaamseoverheid", "stadgent"]
+CATEGORY_BEDRIJVEN = ["belfius", "telenet", "proximus", "colruyt", "kbc"]
+
+ALL_CATEGORIES: dict[str, list[str]] = {
+    "must_have": CATEGORY_MUST_HAVE,
+    "senior": CATEGORY_SENIOR,
+    "interim": CATEGORY_INTERIM,
+    "marketing": CATEGORY_MARKETING,
+    "sport": CATEGORY_SPORT,
+    "overheid": CATEGORY_OVERHEID,
+    "bedrijven": CATEGORY_BEDRIJVEN,
+}
+
 SITE_URLS: dict[str, list[str]] = {
+    # ── 1. Must-Have Platforms (dagelijks monitoren) ──────────────────────
     "jobat": [
         "https://www.jobat.be/nl/jobs/marketing-manager?location=belgie",
         "https://www.jobat.be/nl/jobs/brand-manager?location=belgie",
@@ -95,10 +119,81 @@ SITE_URLS: dict[str, list[str]] = {
         "https://www.stepstone.be/nl/vacature-zoeken/hoofd-marketing/",
         "https://www.stepstone.be/nl/vacature-zoeken/marketing-director/",
     ],
-    "wtj": [
-        "https://www.welcometothejungle.com/en/jobs?refinementList%5Boffice_country_codes%5D%5B%5D=BE&query=marketing+manager",
-        "https://www.welcometothejungle.com/en/jobs?refinementList%5Boffice_country_codes%5D%5B%5D=BE&query=brand+manager",
-        "https://www.welcometothejungle.com/en/jobs?refinementList%5Boffice_country_codes%5D%5B%5D=BE&query=head+of+marketing",
+
+    # ── 2. Senior, Management & Directiefuncties ────────────────────────
+    "michaelpage": [
+        "https://www.michaelpage.be/jobs/marketing-manager",
+        "https://www.michaelpage.be/jobs/marketing-director",
+        "https://www.michaelpage.be/jobs/head-of-marketing",
+    ],
+    "robertwalters": [
+        "https://www.robertwalters.be/marketing-jobs.html",
+    ],
+    "hudson": [
+        "https://www.hudsonsolutions.com/be-nl/jobs?q=marketing",
+    ],
+
+    # ── 3. Interim Management & Freelance Opdrachten ────────────────────
+    "mindsandmore": [
+        "https://www.mindsandmore.be/nl/opdrachten?q=marketing",
+    ],
+    "roberthalf": [
+        "https://www.roberthalf.com/be/en/jobs?query=marketing+manager",
+    ],
+    "randstad": [
+        "https://www.randstad.be/nl/jobs/q-marketing+manager/",
+        "https://www.randstad.be/nl/jobs/q-marketing+director/",
+    ],
+    "adecco": [
+        "https://www.adecco.be/nl-be/vacatures/resultaten?k=marketing+manager",
+    ],
+    "hays": [
+        "https://www.hays.be/en/job-search?query=marketing+manager&location=belgium",
+    ],
+
+    # ── 4. Marketing, Communicatie & Digitale Profielen ──────────────────
+    "bloovi": [
+        "https://www.bloovi.be/jobs?q=marketing",
+    ],
+    "brightplus": [
+        "https://www.brightplus.be/vacatures?q=marketing",
+    ],
+
+    # ── 5. Sport, Sponsoring, Events & Entertainment ────────────────────
+    "sportcareers": [
+        "https://www.sportcareers.be/vacatures",
+    ],
+    "golazo": [
+        "https://www.golazo.com/jobs",
+    ],
+
+    # ── 6. Overheid & Semi-Overheid ─────────────────────────────────────
+    "werkenvoor": [
+        "https://www.werkenvoor.be/nl/vacatures?q=marketing",
+        "https://www.werkenvoor.be/nl/vacatures?q=communicatie",
+    ],
+    "vlaamseoverheid": [
+        "https://www.vlaanderen.be/vacatures-bij-de-vlaamse-overheid?trefwoord=marketing",
+    ],
+    "stadgent": [
+        "https://jobs.stad.gent",
+    ],
+
+    # ── 8. Bedrijven Rechtstreeks ───────────────────────────────────────
+    "belfius": [
+        "https://jobs.belfius.be",
+    ],
+    "telenet": [
+        "https://jobs.telenet.be",
+    ],
+    "proximus": [
+        "https://jobs.proximus.com",
+    ],
+    "colruyt": [
+        "https://jobs.colruytgroup.com",
+    ],
+    "kbc": [
+        "https://www.kbc.com/en/careers.html",
     ],
 }
 

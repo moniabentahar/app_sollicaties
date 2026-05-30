@@ -18,7 +18,7 @@ from src.profile import (
     LANGUAGES,
     TARGET_TITLES,
 )
-from src.scraper import SITE_URLS, scrape_sites
+from src.scraper import ALL_CATEGORIES, SITE_URLS, scrape_sites
 
 app = typer.Typer(
     name="sollicitaties",
@@ -52,6 +52,10 @@ def run(
         None, "--site", "-s",
         help=f"Scrape one site only. Choices: {', '.join(SITE_URLS)}",
     ),
+    category: Optional[str] = typer.Option(
+        None, "--category", "-c",
+        help=f"Scrape a category of sites. Choices: {', '.join(ALL_CATEGORIES)}",
+    ),
     output_dir: Path = typer.Option(
         Path("docs/vacatures"), "--output", "-o",
         help="Directory where the CSV is written.",
@@ -65,9 +69,25 @@ def run(
 ):
     """Scrape job sites and rank listings against the candidate's profile."""
     api_key = _load_api_key()
-    sites = [site] if site else None
+
+    # Resolve which sites to scan: --site > --category > all
+    if site:
+        sites = [site]
+    elif category:
+        cat_sites = ALL_CATEGORIES.get(category)
+        if not cat_sites:
+            console.print(
+                f"[red]Unknown category '{category}'.[/red]\n"
+                f"Valid: {', '.join(ALL_CATEGORIES)}"
+            )
+            raise typer.Exit(1)
+        sites = cat_sites
+    else:
+        sites = None
 
     console.print(f"\n[bold cyan]Sollicitaties2026[/bold cyan] — starting scan")
+    if category:
+        console.print(f"Category: [magenta]{category}[/magenta]")
     if sites:
         console.print(f"Sites  : [yellow]{', '.join(sites)}[/yellow]")
     else:
@@ -108,9 +128,13 @@ def show_profile():
 @app.command()
 def list_sites():
     """List all supported job sites and how many search URLs each has."""
-    console.print("\n[bold]Supported sites:[/bold]")
+    console.print("\n[bold]Categories:[/bold]")
+    for cat_name, cat_sites in ALL_CATEGORIES.items():
+        console.print(f"  [magenta]{cat_name:<14}[/magenta] {', '.join(cat_sites)}")
+
+    console.print("\n[bold]All sites:[/bold]")
     for name, urls in SITE_URLS.items():
-        console.print(f"  [cyan]{name:<12}[/cyan] {len(urls)} search URL(s)")
+        console.print(f"  [cyan]{name:<22}[/cyan] {len(urls)} search URL(s)")
 
 
 if __name__ == "__main__":

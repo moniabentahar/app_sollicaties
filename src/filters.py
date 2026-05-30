@@ -52,12 +52,12 @@ def score_listing(listing: JobListing) -> ScoredListing:
     # --- Exclusions (applied first so they can't be cancelled out) ---
     if _has(blob, EXCLUDE_KEYWORDS):
         score += _PENALTY_JUNIOR
-        flags.append("⚠ junior/entry-level")
+        flags.append("[!] junior/entry-level")
 
     # --- Title match ---
     if _has(_norm(listing.title), TARGET_TITLES):
         score += _TITLE_MATCH
-        flags.append("✓ title match")
+        flags.append("[+] title match")
 
     # --- Geography ---
     is_belgium = _has(blob, BELGIUM_INDICATORS)
@@ -65,27 +65,27 @@ def score_listing(listing: JobListing) -> ScoredListing:
 
     if is_belgium:
         score += _BELGIUM
-        flags.append("✓ Belgium")
+        flags.append("[+] Belgium")
     elif not is_remote:
         score += _PENALTY_OFFSITE
-        flags.append("⚠ outside Belgium / not remote")
+        flags.append("[!] outside Belgium / not remote")
 
     if is_remote:
         score += _REMOTE
-        flags.append("✓ remote/hybrid")
+        flags.append("[+] remote/hybrid")
 
     # --- Language fit (Dutch or French native) ---
     lang_blob = _norm(" ".join(listing.languages) + " " + listing.description_summary)
     if _has(lang_blob, PREFERRED_LANGUAGES):
         score += _PREFERRED_LANG
-        flags.append("✓ Dutch/French required")
+        flags.append("[+] Dutch/French required")
 
     # --- Skill overlap ---
     matched = sum(1 for skill in CORE_SKILLS if skill in blob)
     capped = min(matched, _SKILL_CAP)
     if capped:
         score += capped * _SKILL_EACH
-        flags.append(f"✓ {capped} skill(s) matched")
+        flags.append(f"[+] {capped} skill(s) matched")
 
     # --- Tier ---
     if score >= _TIER_THRESHOLDS[TIER_STRONG]:

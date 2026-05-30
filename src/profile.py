@@ -17,6 +17,12 @@ TARGET_TITLES: frozenset[str] = frozenset({
     "director of marketing",
     "vp marketing",
     "vp of marketing",
+    "marketing consultant",
+    "go-to-market manager",
+    "regional marketing manager",
+    "brand activation manager",
+    "event manager",
+    "product manager",
 })
 
 CORE_SKILLS: frozenset[str] = frozenset({
@@ -34,6 +40,13 @@ CORE_SKILLS: frozenset[str] = frozenset({
     "digital marketing",
     "media planning",
     "communications",
+    "public relations",
+    "pr",
+    "channel marketing",
+    "b2b",
+    "b2c",
+    "sales activation",
+    "retail strategy",
 })
 
 # Languages the candidate speaks — used to detect whether she qualifies

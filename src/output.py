@@ -1,6 +1,7 @@
 """Rich CLI table and CSV export for scored job listings."""
 
 import csv
+import sys
 from pathlib import Path
 
 from rich import box
@@ -9,8 +10,9 @@ from rich.table import Table
 
 from src.models import ScoredListing
 
-# On Windows 11, use modern terminal API (disable legacy CP1252 fallback)
-console = Console(legacy_windows=False)
+# Reconfigure stdout to use UTF-8 on Windows
+sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+console = Console()
 
 _TIER_COLOR = {"strong": "green", "consider": "yellow", "low": "dim white"}
 _TIER_LABEL = {
