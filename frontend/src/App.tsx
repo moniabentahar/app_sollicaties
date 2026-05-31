@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Search, RefreshCw, ExternalLink, CheckCircle2 } from "lucide-react"
+import { Search, RefreshCw, ExternalLink, CheckCircle2, Loader2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -8,13 +8,16 @@ import { CoverLetterDialog } from "@/components/CoverLetterDialog"
 import {
   api,
   formatAppliedDate,
+  formatNextScan,
   listingKey,
+  parseScanFileName,
   tierColor,
   tierLabel,
   type Application,
   type Listing,
   type Profile,
   type Scan,
+  type ScheduleInfo,
   type Tier,
 } from "@/lib/api"
 
@@ -44,6 +47,7 @@ export default function App() {
   const [currentFile, setCurrentFile] = useState("")
   const [loading, setLoading] = useState(true)
   const [scanning, setScanning] = useState(false)
+  const [schedule, setSchedule] = useState<ScheduleInfo | null>(null)
 
   const [query, setQuery] = useState("")
   const [filterTier, setFilterTier] = useState<Tier | "all">("all")
@@ -96,6 +100,7 @@ export default function App() {
         api.profile(),
         loadScans(),
         refreshApplications(),
+        api.schedule().then((s) => { if (!cancelled) setSchedule(s) }).catch(() => {}),
       ])
       if (!cancelled && prof.status === "fulfilled") setProfile(prof.value)
       await loadLatest()
@@ -290,15 +295,19 @@ export default function App() {
                 ))}
               </select>
             )}
-            <Button onClick={handleRunScan} disabled={scanning}>
-              <RefreshCw className={scanning ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
-              {scanning ? "Bezig…" : "Nieuwe scan"}
-            </Button>
           </div>
         </div>
       </header>
 
       <main className="relative z-10 mx-auto max-w-6xl px-5 py-8">
+        {/* Scan hero */}
+        <ScanHero
+          scanning={scanning}
+          currentFile={currentFile}
+          schedule={schedule}
+          onScan={handleRunScan}
+        />
+
         {/* Stat cards */}
         <section className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
           {statCards.map((stat) => {
@@ -468,6 +477,75 @@ export default function App() {
         onConfirm={letterReadOnly ? undefined : handleConfirmApply}
         readOnly={letterReadOnly}
       />
+    </div>
+  )
+}
+
+interface ScanHeroProps {
+  scanning: boolean
+  currentFile: string
+  schedule: ScheduleInfo | null
+  onScan: () => void
+}
+
+function ScanHero({ scanning, currentFile, schedule, onScan }: ScanHeroProps) {
+  const nextLabel = schedule?.next_run ? formatNextScan(schedule.next_run) : null
+
+  return (
+    <div className="mb-8 overflow-hidden rounded-2xl border bg-card shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-6 p-6">
+        <div className="space-y-1">
+          <h2 className="font-display text-xl font-bold tracking-tight">Vacatures scannen</h2>
+          <p className="text-sm text-muted-foreground">
+            Doorzoekt alle Belgische jobsites en matcht vacatures op jouw profiel
+          </p>
+          {currentFile && (
+            <p className="text-xs text-muted-foreground">
+              Laatste scan: {parseScanFileName(currentFile)}
+            </p>
+          )}
+          {nextLabel ? (
+            <p className="text-xs font-medium text-accent">
+              Volgende automatische scan: {nextLabel}
+            </p>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Automatisch elke dinsdag en vrijdag om 08:00
+            </p>
+          )}
+        </div>
+
+        <Button
+          size="lg"
+          onClick={onScan}
+          disabled={scanning}
+          className="min-w-[160px] gap-2 text-base"
+        >
+          {scanning ? (
+            <>
+              <Loader2 className="h-5 w-5 animate-spin" />
+              Bezig…
+            </>
+          ) : (
+            <>
+              <Search className="h-5 w-5" />
+              Start scan
+            </>
+          )}
+        </Button>
+      </div>
+
+      {scanning && (
+        <div className="border-t border-border bg-muted/40 px-6 py-3">
+          <div className="mb-1.5 flex justify-between text-xs text-muted-foreground">
+            <span>Vacaturesites worden gescand…</span>
+            <span>± 2–3 minuten</span>
+          </div>
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+            <div className="h-full animate-pulse rounded-full bg-accent" style={{ width: "70%" }} />
+          </div>
+        </div>
+      )}
     </div>
   )
 }

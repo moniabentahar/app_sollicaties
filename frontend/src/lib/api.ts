@@ -39,6 +39,12 @@ export interface Scan {
   stem: string
 }
 
+export interface ScheduleInfo {
+  next_run: string | null
+  days: string[]
+  hour: number
+}
+
 export interface ScanResult {
   file: string | null
   listings: Listing[]
@@ -63,6 +69,8 @@ export const api = {
     if (!res.ok) throw new Error("scan failed to start")
     return "started"
   },
+
+  schedule: () => getJson<ScheduleInfo>("/api/scan/schedule"),
 
   applications: () => getJson<Application[]>("/api/applications"),
 
@@ -133,4 +141,19 @@ export function formatAppliedDate(iso: string): string {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return iso
   return d.toLocaleDateString("nl-BE", { day: "numeric", month: "long", year: "numeric" })
+}
+
+/** "scan_all_2026-05-30_1508.csv" → "30 mei 2026 om 15:08" */
+export function parseScanFileName(filename: string): string {
+  const m = filename.match(/(\d{4})-(\d{2})-(\d{2})_(\d{2})(\d{2})/)
+  if (!m) return filename
+  const dt = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4]), Number(m[5]))
+  return dt.toLocaleString("nl-BE", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })
+}
+
+/** ISO timestamp → "dinsdag 3 juni om 08:00" */
+export function formatNextScan(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  return d.toLocaleString("nl-BE", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })
 }

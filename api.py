@@ -7,10 +7,14 @@ import csv
 import hashlib
 import json
 import os
+from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -23,7 +27,25 @@ from src.profile import (
     TARGET_TITLES,
 )
 
-app = FastAPI(title="Sollicitaties2026 API")
+_BRUSSELS = ZoneInfo("Europe/Brussels")
+_scheduler = AsyncIOScheduler(timezone=_BRUSSELS)
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    _scheduler.add_job(
+        _trigger_auto_scan,
+        CronTrigger(day_of_week="tue,fri", hour=8, minute=0, timezone=_BRUSSELS),
+        id="auto_scan",
+        replace_existing=True,
+        misfire_grace_time=3600,
+    )
+    _scheduler.start()
+    yield
+    _scheduler.shutdown(wait=False)
+
+
+app = FastAPI(title="Sollicitaties2026 API", lifespan=lifespan)
 
 DOCS_DIR = Path("docs/vacatures")
 FRONTEND_DIR = Path("frontend")
@@ -289,6 +311,19 @@ async def _run_scan(site: str | None, min_score: int) -> None:
         await proc.communicate()
     finally:
         _scan_running = False
+
+
+async def _trigger_auto_scan() -> None:
+    """Called by the scheduler on Tuesday and Friday at 08:00 Brussels time."""
+    if not _scan_running:
+        await _run_scan(site=None, min_score=1)
+
+
+@app.get("/api/scan/schedule")
+def get_scan_schedule() -> dict:
+    job = _scheduler.get_job("auto_scan")
+    next_run = job.next_run_time.isoformat() if job and job.next_run_time else None
+    return {"next_run": next_run, "days": ["dinsdag", "vrijdag"], "hour": 8}
 
 
 # ---------------------------------------------------------------------------
