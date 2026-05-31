@@ -57,6 +57,7 @@ export default function App() {
   const [letterOpen, setLetterOpen] = useState(false)
   const [letterText, setLetterText] = useState("")
   const [letterLoading, setLetterLoading] = useState(false)
+  const [letterReadOnly, setLetterReadOnly] = useState(false)
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -181,6 +182,7 @@ export default function App() {
     setLetterJob(job)
     setLetterText("")
     setLetterLoading(true)
+    setLetterReadOnly(false)
     setLetterOpen(true)
     try {
       setLetterText(await api.generateLetter(job))
@@ -189,6 +191,29 @@ export default function App() {
       setLetterText("Kon de brief niet genereren. Probeer het opnieuw.")
     }
     setLetterLoading(false)
+  }
+
+  async function handleConfirmApply() {
+    if (!letterJob) return
+    try {
+      await api.saveApplication(letterJob, letterText)
+      await refreshApplications()
+      if (letterJob.apply_url) {
+        window.open(letterJob.apply_url, "_blank", "noopener,noreferrer")
+      }
+      setLetterOpen(false)
+      setDetailOpen(false)
+    } catch (e) {
+      console.error("confirmApply", e)
+    }
+  }
+
+  function viewAppliedLetter(app: Application) {
+    setLetterJob(app)
+    setLetterText(app.cover_letter ?? "")
+    setLetterLoading(false)
+    setLetterReadOnly(true)
+    setLetterOpen(true)
   }
 
   function openDetail(job: Listing) {
@@ -414,6 +439,7 @@ export default function App() {
             applications={applications}
             onOpen={openDetail}
             onRemove={(a) => handleToggleApplied(a)}
+            onViewLetter={viewAppliedLetter}
           />
         )}
       </main>
@@ -439,6 +465,8 @@ export default function App() {
         letter={letterText}
         loading={letterLoading}
         onLetterChange={setLetterText}
+        onConfirm={letterReadOnly ? undefined : handleConfirmApply}
+        readOnly={letterReadOnly}
       />
     </div>
   )
@@ -556,9 +584,10 @@ interface AppliedListProps {
   applications: Application[]
   onOpen: (job: Listing) => void
   onRemove: (job: Application) => void
+  onViewLetter: (app: Application) => void
 }
 
-function AppliedList({ applications, onOpen, onRemove }: AppliedListProps) {
+function AppliedList({ applications, onOpen, onRemove, onViewLetter }: AppliedListProps) {
   if (applications.length === 0) {
     return (
       <EmptyState
@@ -599,6 +628,11 @@ function AppliedList({ applications, onOpen, onRemove }: AppliedListProps) {
               </div>
 
               <div className="flex shrink-0 flex-col items-end gap-2">
+                {app.cover_letter && (
+                  <Button variant="outline" size="sm" onClick={() => onViewLetter(app)}>
+                    Bekijk brief
+                  </Button>
+                )}
                 {app.apply_url && (
                   <a
                     href={app.apply_url}
@@ -606,7 +640,7 @@ function AppliedList({ applications, onOpen, onRemove }: AppliedListProps) {
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1 rounded-lg border border-input px-3 py-1.5 text-xs font-semibold transition hover:bg-foreground hover:text-background"
                   >
-                    Bekijk <ExternalLink className="h-3.5 w-3.5" />
+                    Vacature <ExternalLink className="h-3.5 w-3.5" />
                   </a>
                 )}
                 <Button variant="ghost" size="sm" onClick={() => onRemove(app)}>

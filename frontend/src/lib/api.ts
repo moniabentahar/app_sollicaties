@@ -24,11 +24,14 @@ export interface Listing {
   skills?: string[]
   languages?: string[]
   description_summary?: string
+  posted_date?: string
+  experience_level?: string
 }
 
 export interface Application extends Listing {
   job_id: string
   applied_date: string
+  cover_letter?: string
 }
 
 export interface Scan {
@@ -63,11 +66,12 @@ export const api = {
 
   applications: () => getJson<Application[]>("/api/applications"),
 
-  async saveApplication(job: Listing): Promise<{ ok: boolean; job_id: string }> {
+  async saveApplication(job: Listing, letter?: string): Promise<{ ok: boolean; job_id: string }> {
+    const body = letter ? { ...job, cover_letter: letter } : job
     const res = await fetch("/api/applications", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(job),
+      body: JSON.stringify(body),
     })
     if (!res.ok) throw new Error("could not save application")
     return res.json()
@@ -109,6 +113,20 @@ export function tierLabel(tier: string): string {
 /** Stable identity for a listing without recomputing the server-side md5. */
 export function listingKey(job: Listing): string {
   return `${job.title}|${job.company}|${job.apply_url ?? ""}`
+}
+
+export function postedAgo(dateStr?: string): string | null {
+  if (!dateStr || dateStr === "unknown" || dateStr === "") return null
+  const d = new Date(dateStr)
+  if (Number.isNaN(d.getTime())) return dateStr
+  const days = Math.floor((Date.now() - d.getTime()) / 86_400_000)
+  if (days === 0) return "vandaag"
+  if (days === 1) return "gisteren"
+  if (days < 7) return `${days} dagen geleden`
+  if (days < 14) return "vorige week"
+  if (days < 30) return `${Math.floor(days / 7)} weken geleden`
+  if (days < 60) return "vorige maand"
+  return `${Math.floor(days / 30)} maanden geleden`
 }
 
 export function formatAppliedDate(iso: string): string {

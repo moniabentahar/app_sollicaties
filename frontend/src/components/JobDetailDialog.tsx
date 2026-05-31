@@ -8,7 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { tierColor, tierLabel, type Listing } from "@/lib/api"
+import { postedAgo, tierColor, tierLabel, type Listing } from "@/lib/api"
 
 interface JobDetailDialogProps {
   job: Listing | null
@@ -75,6 +75,30 @@ export function JobDetailDialog({
         </DialogHeader>
 
         <div className="max-h-[50vh] space-y-4 overflow-y-auto pr-1">
+          {/* Meta grid: source, posted date, experience level */}
+          {(job.source_site || postedAgo(job.posted_date) || (job.experience_level && job.experience_level !== "unknown")) && (
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2 rounded-lg bg-muted/50 px-3 py-2.5 text-sm">
+              {job.source_site && (
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Bron</p>
+                  <p className="font-medium">{job.source_site}</p>
+                </div>
+              )}
+              {postedAgo(job.posted_date) && (
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Online sinds</p>
+                  <p className="font-medium">{postedAgo(job.posted_date)}</p>
+                </div>
+              )}
+              {job.experience_level && job.experience_level !== "unknown" && (
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Niveau</p>
+                  <p className="font-medium">{job.experience_level}</p>
+                </div>
+              )}
+            </div>
+          )}
+
           {job.description_summary && (
             <p className="text-sm leading-relaxed text-muted-foreground">{job.description_summary}</p>
           )}
