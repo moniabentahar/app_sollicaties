@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Search, ExternalLink, CheckCircle2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import demoData from "@/data/listings.json";
 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -53,6 +54,7 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
   const [schedule, setSchedule] = useState<ScheduleInfo | null>(null);
+  const [isPreview, setIsPreview] = useState(false);
 
   const [query, setQuery] = useState("");
   const [filterTier, setFilterTier] = useState<Tier | "all">("all");
@@ -81,10 +83,14 @@ function App() {
   const loadLatest = useCallback(async () => {
     try {
       const data = await api.latest();
-      setListings(data.listings);
+      setListings(data.listings as Listing[]);
       setCurrentFile(data.file ?? "");
+      setIsPreview(false);
     } catch {
-      // silent
+      // Backend unavailable — show bundled demo data so the preview works
+      setListings(demoData.listings as Listing[]);
+      setCurrentFile(demoData.file);
+      setIsPreview(true);
     }
   }, []);
 
@@ -329,6 +335,7 @@ function App() {
           scanning={scanning}
           currentFile={currentFile}
           schedule={schedule}
+          isPreview={isPreview}
           onScan={handleRunScan}
         />
 
@@ -511,26 +518,36 @@ interface ScanHeroProps {
   scanning: boolean;
   currentFile: string;
   schedule: ScheduleInfo | null;
+  isPreview: boolean;
   onScan: () => void;
 }
 
-function ScanHero({ scanning, currentFile, schedule, onScan }: ScanHeroProps) {
+function ScanHero({ scanning, currentFile, schedule, isPreview, onScan }: ScanHeroProps) {
   const nextLabel = schedule?.next_run ? formatNextScan(schedule.next_run) : null;
 
   return (
     <div className="mb-8 overflow-hidden rounded-2xl border bg-card shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-6 p-6">
         <div className="space-y-1">
-          <h2 className="font-display text-xl font-bold tracking-tight">Vacatures scannen</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="font-display text-xl font-bold tracking-tight">Vacatures scannen</h2>
+            {isPreview && (
+              <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Demo
+              </span>
+            )}
+          </div>
           <p className="text-sm text-muted-foreground">
-            Doorzoekt alle Belgische jobsites en matcht vacatures op jouw profiel
+            {isPreview
+              ? "Voorbeelddata — start de server lokaal voor live vacatures"
+              : "Doorzoekt alle Belgische jobsites en matcht vacatures op jouw profiel"}
           </p>
-          {currentFile && (
+          {currentFile && !isPreview && (
             <p className="text-xs text-muted-foreground">
               Laatste scan: {parseScanFileName(currentFile)}
             </p>
           )}
-          {nextLabel ? (
+          {!isPreview && (nextLabel ? (
             <p className="text-xs font-medium text-accent">
               Volgende automatische scan: {nextLabel}
             </p>
@@ -538,13 +555,13 @@ function ScanHero({ scanning, currentFile, schedule, onScan }: ScanHeroProps) {
             <p className="text-xs text-muted-foreground">
               Automatisch elke dinsdag en vrijdag om 08:00
             </p>
-          )}
+          ))}
         </div>
 
         <Button
           size="lg"
-          onClick={onScan}
-          disabled={scanning}
+          onClick={isPreview ? undefined : onScan}
+          disabled={scanning || isPreview}
           className="min-w-[160px] gap-2 text-base"
         >
           {scanning ? (
@@ -555,13 +572,13 @@ function ScanHero({ scanning, currentFile, schedule, onScan }: ScanHeroProps) {
           ) : (
             <>
               <Search className="h-5 w-5" />
-              Start scan
+              {isPreview ? "Demo mode" : "Start scan"}
             </>
           )}
         </Button>
       </div>
 
-      {scanning && (
+      {scanning && !isPreview && (
         <div className="border-t border-border bg-muted/40 px-6 py-3">
           <div className="mb-1.5 flex justify-between text-xs text-muted-foreground">
             <span>Vacaturesites worden gescand…</span>
