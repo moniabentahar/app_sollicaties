@@ -1,9 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Search, RefreshCw, ExternalLink, CheckCircle2, Loader2 } from "lucide-react";
+import { Search, ExternalLink, CheckCircle2, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Toaster } from "@/components/ui/sonner";
 import { JobDetailDialog } from "@/components/JobDetailDialog";
 import { CoverLetterDialog } from "@/components/CoverLetterDialog";
 import {
@@ -41,14 +43,6 @@ const TIER_FILTERS: Array<{ value: Tier | "all"; label: string }> = [
 
 const POLL_INTERVAL_MS = 2500;
 
-const SCAN_STARTED_MESSAGE =
-  "Scan gestart! 🚀\n\n" +
-  "Let op: een volledige scan doorzoekt meer dan 30 vacaturesites. Om blokkades te " +
-  "vermijden pauzeren we tussen de verzoeken, dus een volledige scan duurt ongeveer 2 à 3 minuten.\n\n" +
-  "Je mag deze pagina open laten; ze wordt automatisch bijgewerkt zodra de scan klaar is.";
-
-const SCAN_DONE_MESSAGE = "Scan voltooid! 🎉\n\nHet dashboard is bijgewerkt met de nieuwste resultaten.";
-
 function App() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [listings, setListings] = useState<Listing[]>([]);
@@ -59,6 +53,7 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
   const [schedule, setSchedule] = useState<ScheduleInfo | null>(null);
+  const [backendAvailable, setBackendAvailable] = useState(true);
 
   const [query, setQuery] = useState("");
   const [filterTier, setFilterTier] = useState<Tier | "all">("all");
@@ -79,8 +74,8 @@ function App() {
   const refreshApplications = useCallback(async () => {
     try {
       setApplications(await api.applications());
-    } catch (e) {
-      console.error("applications", e);
+    } catch {
+      // silent — backend may not be running
     }
   }, []);
 
@@ -89,8 +84,8 @@ function App() {
       const data = await api.latest();
       setListings(data.listings);
       setCurrentFile(data.file ?? "");
-    } catch (e) {
-      console.error("latest", e);
+    } catch {
+      // silent
     }
   }, []);
 
@@ -99,23 +94,31 @@ function App() {
       const data = await api.scans();
       setScans(data);
       if (data.length) setSelectedFile((prev) => prev || data[0].name);
-    } catch (e) {
-      console.error("scans", e);
+    } catch {
+      // silent
     }
   }, []);
 
   useEffect(() => {
     let cancelled = false;
     async function init() {
-      const [prof] = await Promise.allSettled([
-        api.profile(),
-        loadScans(),
-        refreshApplications(),
-        api.schedule().then((s) => { if (!cancelled) setSchedule(s); }).catch(() => {}),
-      ]);
-      if (!cancelled && prof.status === "fulfilled") setProfile(prof.value);
-      await loadLatest();
-      if (!cancelled) setLoading(false);
+      try {
+        const [prof] = await Promise.allSettled([
+          api.profile(),
+          loadScans(),
+          refreshApplications(),
+          api.schedule().then((s) => { if (!cancelled) setSchedule(s); }).catch(() => {}),
+        ]);
+        if (!cancelled) {
+          setBackendAvailable(prof.status === "fulfilled");
+          if (prof.status === "fulfilled") setProfile(prof.value);
+        }
+        await loadLatest();
+      } catch {
+        if (!cancelled) setBackendAvailable(false);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     }
     void init();
     return () => {
@@ -134,7 +137,9 @@ function App() {
           setScanning(false);
           await loadScans();
           await loadLatest();
-          window.alert(SCAN_DONE_MESSAGE);
+          toast.success("Scan voltooid!", {
+            description: "Het dashboard is bijgewerkt met de nieuwste resultaten.",
+          });
         }
       } catch {
         if (pollRef.current) clearInterval(pollRef.current);
@@ -145,14 +150,24 @@ function App() {
 
   async function handleRunScan() {
     if (scanning) return;
+    setScanning(true);
     try {
       const result = await api.runScan();
-      setScanning(true);
-      if (result === "started") window.alert(SCAN_STARTED_MESSAGE);
-      startPolling();
-    } catch (e) {
-      console.error("runScan", e);
-      window.alert("Kon de scan niet starten. Draait de server?");
+      if (result === "started") {
+        toast.success("Scan gestart!", {
+          description: "Een volledige scan duurt ±2-3 minuten. De pagina wordt automatisch bijgewerkt.",
+          duration: 6000,
+        });
+        startPolling();
+      } else {
+        setScanning(false);
+        toast.info("Er loopt al een scan.");
+      }
+    } catch {
+      setScanning(false);
+      toast.error("Scan kon niet starten", {
+        description: "Is de server actief? Start uvicorn en probeer opnieuw.",
+      });
     }
   }
 
@@ -164,8 +179,8 @@ function App() {
       const data = await api.scan(name);
       setListings(data.listings);
       setCurrentFile(data.file ?? name);
-    } catch (e) {
-      console.error("scan", e);
+    } catch {
+      // silent
     }
     setLoading(false);
   }
@@ -189,8 +204,8 @@ function App() {
         await api.saveApplication(job);
       }
       await refreshApplications();
-    } catch (e) {
-      console.error("toggleApplied", e);
+    } catch {
+      toast.error("Kon de status niet bijwerken.");
     }
   }
 
@@ -202,8 +217,7 @@ function App() {
     setLetterOpen(true);
     try {
       setLetterText(await api.generateLetter(job));
-    } catch (e) {
-      console.error("generateLetter", e);
+    } catch {
       setLetterText("Kon de brief niet genereren. Probeer het opnieuw.");
     }
     setLetterLoading(false);
@@ -219,8 +233,9 @@ function App() {
       }
       setLetterOpen(false);
       setDetailOpen(false);
-    } catch (e) {
-      console.error("confirmApply", e);
+      toast.success("Gesolliciteerd!", { description: `${letterJob.title} bij ${letterJob.company}` });
+    } catch {
+      toast.error("Kon de sollicitatie niet opslaan.");
     }
   }
 
@@ -273,6 +288,8 @@ function App() {
 
   return (
     <div className="grain relative min-h-screen">
+      <Toaster position="top-right" richColors />
+
       {/* Header */}
       <header className="sticky top-0 z-30 border-b bg-background/80 backdrop-blur">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-4 px-5 py-4">
@@ -311,6 +328,15 @@ function App() {
       </header>
 
       <main className="relative z-10 mx-auto max-w-6xl px-5 py-8">
+        {/* Backend unavailable notice */}
+        {!backendAvailable && !loading && (
+          <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            <strong>Backend niet beschikbaar.</strong> Start de server met{" "}
+            <code className="rounded bg-amber-100 px-1 font-mono">uvicorn api:app --reload</code>{" "}
+            om vacatures te laden en te scannen.
+          </div>
+        )}
+
         {/* Scan hero */}
         <ScanHero
           scanning={scanning}
@@ -420,7 +446,7 @@ function App() {
               </select>
             </section>
 
-            {/* States */}
+            {/* Content */}
             {loading ? (
               <div className="space-y-3">
                 {[0, 1, 2, 3].map((i) => (
@@ -429,8 +455,8 @@ function App() {
               </div>
             ) : listings.length === 0 ? (
               <EmptyState
-                title="Nog geen scans"
-                body="Klik op Start scan om verse vacatures op te halen en te scoren."
+                title="Nog geen vacatures"
+                body={backendAvailable ? "Klik op Start scan om verse vacatures op te halen." : "Start de backend server en klik op Start scan."}
               />
             ) : (
               <section className="space-y-3">
@@ -605,7 +631,7 @@ function JobCard({ job, applied, onOpen }: JobCardProps) {
               {tierLabel(job.tier)}
             </span>
             {applied && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-accent/12 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent">
+              <span className="inline-flex items-center gap-1 rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent">
                 <CheckCircle2 className="h-3 w-3" /> Gesolliciteerd
               </span>
             )}
