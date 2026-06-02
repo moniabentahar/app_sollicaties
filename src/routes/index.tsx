@@ -53,7 +53,6 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
   const [schedule, setSchedule] = useState<ScheduleInfo | null>(null);
-  const [backendAvailable, setBackendAvailable] = useState(true);
 
   const [query, setQuery] = useState("");
   const [filterTier, setFilterTier] = useState<Tier | "all">("all");
@@ -109,13 +108,10 @@ function App() {
           refreshApplications(),
           api.schedule().then((s) => { if (!cancelled) setSchedule(s); }).catch(() => {}),
         ]);
-        if (!cancelled) {
-          setBackendAvailable(prof.status === "fulfilled");
-          if (prof.status === "fulfilled") setProfile(prof.value);
-        }
+        if (!cancelled && prof.status === "fulfilled") setProfile(prof.value);
         await loadLatest();
       } catch {
-        if (!cancelled) setBackendAvailable(false);
+        // silent — backend may not be running
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -328,15 +324,6 @@ function App() {
       </header>
 
       <main className="relative z-10 mx-auto max-w-6xl px-5 py-8">
-        {/* Backend unavailable notice */}
-        {!backendAvailable && !loading && (
-          <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            <strong>Backend niet beschikbaar.</strong> Start de server met{" "}
-            <code className="rounded bg-amber-100 px-1 font-mono">uvicorn api:app --reload</code>{" "}
-            om vacatures te laden en te scannen.
-          </div>
-        )}
-
         {/* Scan hero */}
         <ScanHero
           scanning={scanning}
@@ -456,7 +443,7 @@ function App() {
             ) : listings.length === 0 ? (
               <EmptyState
                 title="Nog geen vacatures"
-                body={backendAvailable ? "Klik op Start scan om verse vacatures op te halen." : "Start de backend server en klik op Start scan."}
+                body="Klik op Start scan om verse vacatures op te halen en te scoren."
               />
             ) : (
               <section className="space-y-3">
