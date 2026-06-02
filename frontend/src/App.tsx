@@ -30,13 +30,6 @@ const TIER_FILTERS: Array<{ value: Tier | "all"; label: string }> = [
 
 const POLL_INTERVAL_MS = 2500
 
-const SCAN_STARTED_MESSAGE =
-  "Scan gestart! 🚀\n\n" +
-  "Let op: een volledige scan doorzoekt meer dan 30 vacaturesites. Om blokkades te " +
-  "vermijden pauzeren we tussen de verzoeken, dus een volledige scan duurt ongeveer 2 à 3 minuten.\n\n" +
-  "Je mag deze pagina open laten; ze wordt automatisch bijgewerkt zodra de scan klaar is."
-
-const SCAN_DONE_MESSAGE = "Scan voltooid! 🎉\n\nHet dashboard is bijgewerkt met de nieuwste resultaten."
 
 export default function App() {
   const [profile, setProfile] = useState<Profile | null>(null)
@@ -123,7 +116,6 @@ export default function App() {
           setScanning(false)
           await loadScans()
           await loadLatest()
-          window.alert(SCAN_DONE_MESSAGE)
         }
       } catch {
         if (pollRef.current) clearInterval(pollRef.current)
@@ -134,14 +126,17 @@ export default function App() {
 
   async function handleRunScan() {
     if (scanning) return
+    setScanning(true)
     try {
       const result = await api.runScan()
-      setScanning(true)
-      if (result === "started") window.alert(SCAN_STARTED_MESSAGE)
-      startPolling()
+      if (result === "started") {
+        startPolling()
+      } else if (result === "already-running") {
+        startPolling()
+      }
     } catch (e) {
       console.error("runScan", e)
-      window.alert("Kon de scan niet starten. Draait de server?")
+      setScanning(false)
     }
   }
 
