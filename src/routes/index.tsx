@@ -5,7 +5,6 @@ import { toast } from "sonner";
 import demoData from "@/data/listings.json";
 
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Toaster } from "@/components/ui/sonner";
 import { JobDetailDialog } from "@/components/JobDetailDialog";
 import { CoverLetterDialog } from "@/components/CoverLetterDialog";
@@ -46,15 +45,14 @@ const POLL_INTERVAL_MS = 2500;
 
 function App() {
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [listings, setListings] = useState<Listing[]>([]);
+  const [listings, setListings] = useState<Listing[]>(demoData.listings as Listing[]);
   const [scans, setScans] = useState<Scan[]>([]);
   const [applications, setApplications] = useState<Application[]>([]);
   const [selectedFile, setSelectedFile] = useState("");
-  const [currentFile, setCurrentFile] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [currentFile, setCurrentFile] = useState(demoData.file);
   const [scanning, setScanning] = useState(false);
   const [schedule, setSchedule] = useState<ScheduleInfo | null>(null);
-  const [isPreview, setIsPreview] = useState(false);
+  const [isPreview, setIsPreview] = useState(true);
 
   const [query, setQuery] = useState("");
   const [filterTier, setFilterTier] = useState<Tier | "all">("all");
@@ -72,62 +70,44 @@ function App() {
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const refreshApplications = useCallback(async () => {
-    try {
-      setApplications(await api.applications());
-    } catch {
-      // silent — backend may not be running
-    }
-  }, []);
-
-  const loadLatest = useCallback(async () => {
-    try {
-      const data = await api.latest();
-      setListings(data.listings as Listing[]);
-      setCurrentFile(data.file ?? "");
-      setIsPreview(false);
-    } catch {
-      // Backend unavailable — show bundled demo data so the preview works
-      setListings(demoData.listings as Listing[]);
-      setCurrentFile(demoData.file);
-      setIsPreview(true);
-    }
-  }, []);
-
-  const loadScans = useCallback(async () => {
-    try {
-      const data = await api.scans();
-      setScans(data);
-      if (data.length) setSelectedFile((prev) => prev || data[0].name);
-    } catch {
-      // silent
-    }
-  }, []);
-
   useEffect(() => {
     let cancelled = false;
-    async function init() {
+
+    // Silently try to upgrade from demo data to live data in the background.
+    // The UI is already showing demo data from initial state — no loading spinner needed.
+    async function tryLiveData() {
       try {
-        const [prof] = await Promise.allSettled([
-          api.profile(),
-          loadScans(),
-          refreshApplications(),
-          api.schedule().then((s) => { if (!cancelled) setSchedule(s); }).catch(() => {}),
+        const [latest, prof, apps, scansData, sched] = await Promise.all([
+          api.latest().catch(() => null),
+          api.profile().catch(() => null),
+          api.applications().catch(() => null),
+          api.scans().catch(() => null),
+          api.schedule().catch(() => null),
         ]);
-        if (!cancelled && prof.status === "fulfilled") setProfile(prof.value);
-        await loadLatest();
+        if (cancelled) return;
+        if (latest) {
+          setListings(latest.listings as Listing[]);
+          setCurrentFile(latest.file ?? "");
+          setIsPreview(false);
+        }
+        if (prof) setProfile(prof);
+        if (apps) setApplications(apps);
+        if (scansData && scansData.length) {
+          setScans(scansData);
+          setSelectedFile(scansData[0].name);
+        }
+        if (sched) setSchedule(sched);
       } catch {
-        // silent — backend may not be running
-      } finally {
-        if (!cancelled) setLoading(false);
+        // Backend not available — keep showing demo data, that's fine
       }
     }
-    void init();
+
+    void tryLiveData();
     return () => {
       cancelled = true;
       if (pollRef.current) clearInterval(pollRef.current);
     };
-  }, [loadScans, loadLatest, refreshApplications]);
+  }, []);
 
   const startPolling = useCallback(() => {
     if (pollRef.current) clearInterval(pollRef.current);
@@ -137,8 +117,20 @@ function App() {
         if (!running) {
           if (pollRef.current) clearInterval(pollRef.current);
           setScanning(false);
-          await loadScans();
-          await loadLatest();
+          // Reload live data after scan completes
+          const [latest, scansData] = await Promise.all([
+            api.latest().catch(() => null),
+            api.scans().catch(() => null),
+          ]);
+          if (latest) {
+            setListings(latest.listings as Listing[]);
+            setCurrentFile(latest.file ?? "");
+            setIsPreview(false);
+          }
+          if (scansData && scansData.length) {
+            setScans(scansData);
+            setSelectedFile(scansData[0].name);
+          }
           toast.success("Scan voltooid!", {
             description: "Het dashboard is bijgewerkt met de nieuwste resultaten.",
           });
@@ -148,7 +140,7 @@ function App() {
         setScanning(false);
       }
     }, POLL_INTERVAL_MS);
-  }, [loadScans, loadLatest]);
+  }, []);
 
   async function handleRunScan() {
     if (scanning) return;
@@ -174,15 +166,14 @@ function App() {
   async function handleLoadScan(name: string) {
     if (!name) return;
     setSelectedFile(name);
-    setLoading(true);
     try {
       const data = await api.scan(name);
-      setListings(data.listings);
+      setListings(data.listings as Listing[]);
       setCurrentFile(data.file ?? name);
+      setIsPreview(false);
     } catch {
       // silent
     }
-    setLoading(false);
   }
 
   const appliedKeys = useMemo(
@@ -203,7 +194,7 @@ function App() {
       } else {
         await api.saveApplication(job);
       }
-      await refreshApplications();
+      setApplications(await api.applications());
     } catch {
       toast.error("Kon de status niet bijwerken.");
     }
@@ -227,7 +218,7 @@ function App() {
     if (!letterJob) return;
     try {
       await api.saveApplication(letterJob, letterText);
-      await refreshApplications();
+      setApplications(await api.applications());
       if (letterJob.apply_url) {
         window.open(letterJob.apply_url, "_blank", "noopener,noreferrer");
       }
@@ -439,13 +430,7 @@ function App() {
             </section>
 
             {/* Content */}
-            {loading ? (
-              <div className="space-y-3">
-                {[0, 1, 2, 3].map((i) => (
-                  <Skeleton key={i} className="h-24 rounded-2xl" />
-                ))}
-              </div>
-            ) : listings.length === 0 ? (
+            {listings.length === 0 ? (
               <EmptyState
                 title="Nog geen vacatures"
                 body="Klik op Start scan om verse vacatures op te halen en te scoren."
