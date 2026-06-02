@@ -24,9 +24,12 @@ env/
 .idea/
 
 # Frontend (Node / Vite)
+node_modules/
 frontend/node_modules/
 frontend/.vite/
+dist/
 *.tsbuildinfo
+package-lock.json
 
 # Runtime data
 docs/applied_jobs.json
