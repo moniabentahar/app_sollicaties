@@ -43,9 +43,20 @@ const TIER_FILTERS: Array<{ value: Tier | "all"; label: string }> = [
 
 const POLL_INTERVAL_MS = 2500;
 
+/** Add tier field to items that come from the static JSON (which lacks it). */
+function withTier(items: Record<string, unknown>[]): Listing[] {
+  return items.map((l) => ({
+    ...l,
+    tier: (l.tier as Tier | undefined) ??
+      (Number(l.score) >= 7 ? "strong" : Number(l.score) >= 4 ? "consider" : "low"),
+  })) as Listing[];
+}
+
+const DEMO_LISTINGS = withTier(demoData.listings as Record<string, unknown>[]);
+
 function App() {
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [listings, setListings] = useState<Listing[]>(demoData.listings as Listing[]);
+  const [listings, setListings] = useState<Listing[]>(DEMO_LISTINGS);
   const [scans, setScans] = useState<Scan[]>([]);
   const [applications, setApplications] = useState<Application[]>([]);
   const [selectedFile, setSelectedFile] = useState("");
@@ -86,7 +97,7 @@ function App() {
         ]);
         if (cancelled) return;
         if (latest) {
-          setListings(latest.listings as Listing[]);
+          setListings(withTier(latest.listings as Record<string, unknown>[]));
           setCurrentFile(latest.file ?? "");
           setIsPreview(false);
         }
@@ -144,6 +155,13 @@ function App() {
 
   async function handleRunScan() {
     if (scanning) return;
+    if (isPreview) {
+      toast.info("Scan vereist de lokale server.", {
+        description: "Start uvicorn api:app --reload en open http://localhost:8000 om echt te scannen.",
+        duration: 6000,
+      });
+      return;
+    }
     setScanning(true);
     try {
       const result = await api.runScan();
@@ -512,39 +530,31 @@ function ScanHero({ scanning, currentFile, schedule, isPreview, onScan }: ScanHe
     <div className="mb-8 overflow-hidden rounded-2xl border bg-card shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-6 p-6">
         <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <h2 className="font-display text-xl font-bold tracking-tight">Vacatures scannen</h2>
-            {isPreview && (
-              <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                Demo
-              </span>
-            )}
-          </div>
+          <h2 className="font-display text-xl font-bold tracking-tight">Vacatures scannen</h2>
           <p className="text-sm text-muted-foreground">
-            {isPreview
-              ? "Voorbeelddata — start de server lokaal voor live vacatures"
-              : "Doorzoekt alle Belgische jobsites en matcht vacatures op jouw profiel"}
+            Doorzoekt alle Belgische jobsites en matcht vacatures op jouw profiel
           </p>
           {currentFile && !isPreview && (
             <p className="text-xs text-muted-foreground">
               Laatste scan: {parseScanFileName(currentFile)}
             </p>
           )}
-          {!isPreview && (nextLabel ? (
+          {nextLabel && !isPreview && (
             <p className="text-xs font-medium text-accent">
               Volgende automatische scan: {nextLabel}
             </p>
-          ) : (
+          )}
+          {!isPreview && !nextLabel && (
             <p className="text-xs text-muted-foreground">
               Automatisch elke dinsdag en vrijdag om 08:00
             </p>
-          ))}
+          )}
         </div>
 
         <Button
           size="lg"
-          onClick={isPreview ? undefined : onScan}
-          disabled={scanning || isPreview}
+          onClick={onScan}
+          disabled={scanning}
           className="min-w-[160px] gap-2 text-base"
         >
           {scanning ? (
@@ -555,7 +565,7 @@ function ScanHero({ scanning, currentFile, schedule, isPreview, onScan }: ScanHe
           ) : (
             <>
               <Search className="h-5 w-5" />
-              {isPreview ? "Demo mode" : "Start scan"}
+              Start scan
             </>
           )}
         </Button>
