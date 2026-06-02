@@ -167,9 +167,7 @@ function App() {
       }
     } catch {
       setScanning(false);
-      toast.error("Scan kon niet starten", {
-        description: "Is de server actief? Start uvicorn en probeer opnieuw.",
-      });
+      toast.error("Scan kon niet starten — probeer opnieuw.");
     }
   }
 
