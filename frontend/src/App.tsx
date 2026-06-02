@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Search, RefreshCw, ExternalLink, CheckCircle2, Loader2 } from "lucide-react"
+import { Search, ExternalLink, CheckCircle2, Loader2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -128,14 +128,9 @@ export default function App() {
     if (scanning) return
     setScanning(true)
     try {
-      const result = await api.runScan()
-      if (result === "started") {
-        startPolling()
-      } else if (result === "already-running") {
-        startPolling()
-      }
-    } catch (e) {
-      console.error("runScan", e)
+      await api.runScan()
+      startPolling()
+    } catch {
       setScanning(false)
     }
   }

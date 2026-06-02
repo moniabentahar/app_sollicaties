@@ -27,9 +27,12 @@ env/
 node_modules/
 frontend/node_modules/
 frontend/.vite/
-dist/
+frontend/dist/assets/*.map
 *.tsbuildinfo
 package-lock.json
+
+# Root-level build output only (not frontend/dist)
+/dist/
 
 # Runtime data
 docs/applied_jobs.json
