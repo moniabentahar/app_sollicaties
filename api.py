@@ -229,14 +229,14 @@ def get_profile() -> dict:
 @app.get("/api/scans")
 def list_scans() -> list[dict]:
     DOCS_DIR.mkdir(parents=True, exist_ok=True)
-    files = sorted(DOCS_DIR.glob("*.csv"), reverse=True)
+    files = sorted(DOCS_DIR.glob("*.csv"), key=lambda f: f.stat().st_mtime, reverse=True)
     return [{"name": f.name, "stem": f.stem} for f in files]
 
 
 @app.get("/api/scan/latest")
 def get_latest_scan() -> dict:
     DOCS_DIR.mkdir(parents=True, exist_ok=True)
-    files = sorted(DOCS_DIR.glob("*.csv"), reverse=True)
+    files = sorted(DOCS_DIR.glob("*.csv"), key=lambda f: f.stat().st_mtime, reverse=True)
     if not files:
         return {"file": None, "listings": []}
 
@@ -298,7 +298,7 @@ async def _run_scan(site: str | None, min_score: int) -> None:
     _scan_running = True
     try:
         import sys
-        args = [sys.executable, "main.py", "run", "--min-score", str(min_score)]
+        args = [sys.executable, "main.py", "run", "--min-score", str(min_score), "--browser"]
         if site:
             args += ["--site", site]
         env = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"}

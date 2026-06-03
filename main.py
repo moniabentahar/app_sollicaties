@@ -22,7 +22,7 @@ from src.scraper import ALL_CATEGORIES, SITE_URLS, scrape_sites
 
 app = typer.Typer(
     name="sollicitaties",
-    help="Find marketing jobs matching the candidate's profile using Firecrawl.",
+    help="Find marketing jobs matching the candidate's profile (Scrapling + Claude extraction).",
     no_args_is_help=True,
 )
 console = Console()
@@ -35,12 +35,13 @@ def _load_api_key() -> str:
         if p.exists():
             load_dotenv(p)
             break
-    key = os.getenv("FIRECRAWL_API_KEY", "").strip()
+    key = os.getenv("ANTHROPIC_API_KEY", "").strip()
     if not key:
         console.print(
-            "[red]FIRECRAWL_API_KEY not found.[/red]\n"
-            "Add it to [bold]config/.env[/bold] as:\n"
-            "  FIRECRAWL_API_KEY=fc-..."
+            "[red]ANTHROPIC_API_KEY not found.[/red]\n"
+            "Scrapling fetches the pages locally; Claude extracts the listings.\n"
+            "Add your key to [bold]config/.env[/bold] as:\n"
+            "  ANTHROPIC_API_KEY=sk-ant-..."
         )
         raise typer.Exit(1)
     return key
@@ -66,6 +67,10 @@ def run(
     ),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Print each URL scraped."),
     csv_only: bool = typer.Option(False, "--csv-only", help="Skip CLI table; only write CSV."),
+    browser: bool = typer.Option(
+        False, "--browser",
+        help="Use the Scrapling stealth browser (JS/anti-bot sites). Needs `scrapling install`.",
+    ),
 ):
     """Scrape job sites and rank listings against the candidate's profile."""
     api_key = _load_api_key()
@@ -93,7 +98,7 @@ def run(
     else:
         console.print(f"Sites  : [yellow]{', '.join(SITE_URLS)}[/yellow]  (all)")
 
-    listings = scrape_sites(api_key, sites=sites, verbose=verbose)
+    listings = scrape_sites(api_key, sites=sites, verbose=verbose, use_browser=browser)
     console.print(f"\nUnique listings found: [cyan]{len(listings)}[/cyan]")
 
     scored = filter_and_score(listings)
