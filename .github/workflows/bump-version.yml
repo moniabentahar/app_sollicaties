@@ -1,0 +1,52 @@
+name: Bump version on push
+
+# Raises the app version (src/version.ts) by one minor step on every push to main,
+# then commits the new version back to the repo so Lovable / GitHub show it.
+#
+# Loop protection (three independent guards):
+#   1. If this push already changed src/version.ts, we skip (so the commit that
+#      sets the starting version, and the bump commit itself, never re-bump).
+#   2. The bump commit message contains [skip ci].
+#   3. Pushes made with GITHUB_TOKEN do not trigger new workflow runs.
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Skip if this push already changed the version
+        id: check
+        run: |
+          changed=$(git diff --name-only "${{ github.event.before }}" "${{ github.event.after }}" 2>/dev/null || echo "")
+          if echo "$changed" | grep -q "src/version.ts"; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "src/version.ts changed in this push - skipping bump."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Bump and commit
+        if: steps.check.outputs.skip == 'false'
+        run: |
+          node scripts/bump-version.mjs
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/version.ts
+          git commit -m "chore: bump version [skip ci]"
+          git push

@@ -4,6 +4,7 @@ import { Search, ExternalLink, CheckCircle2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import demoData from "@/data/listings.json";
 
+import { APP_VERSION } from "@/version";
 import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/sonner";
 import { JobDetailDialog } from "@/components/JobDetailDialog";
@@ -299,6 +300,9 @@ function App() {
             <h1 className="font-display text-xl font-bold tracking-tight">
               Sollicitaties<span className="text-accent">2026</span>
             </h1>
+            <span className="rounded-full border border-border bg-muted px-2 py-0.5 text-[11px] font-semibold tabular-nums text-muted-foreground">
+              v{APP_VERSION}
+            </span>
             {profile?.name && (
               <span className="hidden text-xs text-muted-foreground sm:inline">
                 voor {profile.name}
