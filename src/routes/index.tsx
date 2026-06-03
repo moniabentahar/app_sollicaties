@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Search, ExternalLink, CheckCircle2, Loader2 } from "lucide-react";
+import { Search, ExternalLink, CheckCircle2, Loader2, Calendar, MapPin, Building2 } from "lucide-react";
 import { toast } from "sonner";
 import demoData from "@/data/listings.json";
 
@@ -15,6 +15,7 @@ import {
   formatNextScan,
   listingKey,
   parseScanFileName,
+  postedAgo,
   tierColor,
   tierLabel,
   type Application,
@@ -43,6 +44,13 @@ const TIER_FILTERS: Array<{ value: Tier | "all"; label: string }> = [
 ];
 
 const POLL_INTERVAL_MS = 2500;
+
+/** Dutch labels for the work arrangement shown in the card footer. */
+const REMOTE_LABEL: Record<string, string> = {
+  onsite: "Op kantoor",
+  hybrid: "Hybride",
+  remote: "Thuiswerk",
+};
 
 /** Add tier field to items that come from the static JSON (which lacks it). */
 function withTier(items: Record<string, unknown>[]): Listing[] {
@@ -156,6 +164,14 @@ function App() {
 
   async function handleRunScan() {
     if (scanning) return;
+    if (isPreview) {
+      toast.info("Scannen werkt alleen in de lokale app", {
+        description:
+          "Start de Python-backend (uvicorn) en open de app lokaal. In deze online preview zie je voorbeelddata.",
+        duration: 7000,
+      });
+      return;
+    }
     setScanning(true);
     try {
       const result = await api.runScan();
@@ -531,6 +547,11 @@ function ScanHero({ scanning, currentFile, schedule, isPreview, onScan }: ScanHe
           <p className="text-sm text-muted-foreground">
             Doorzoekt alle Belgische jobsites en matcht vacatures op jouw profiel
           </p>
+          {isPreview && (
+            <p className="text-xs font-medium text-amber-600">
+              Voorbeeldmodus — de scan draait alleen in de lokale app met de Python-backend.
+            </p>
+          )}
           {currentFile && !isPreview && (
             <p className="text-xs text-muted-foreground">
               Laatste scan: {parseScanFileName(currentFile)}
@@ -600,6 +621,9 @@ interface JobCardProps {
 
 function JobCard({ job, applied, onOpen }: JobCardProps) {
   const color = tierColor(job.tier);
+  const posted = postedAgo(job.posted_date);
+  const remoteLabel =
+    job.remote && job.remote !== "unknown" ? REMOTE_LABEL[job.remote] ?? job.remote : null;
   return (
     <article
       onClick={onOpen}
@@ -631,12 +655,7 @@ function JobCard({ job, applied, onOpen }: JobCardProps) {
             )}
           </div>
 
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            <span className="font-semibold text-foreground">{job.company}</span>
-            {" · "}
-            {job.location || "—"}
-            {job.remote && job.remote !== "unknown" ? ` · ${job.remote}` : ""}
-          </p>
+          <p className="mt-0.5 text-sm font-semibold text-foreground">{job.company}</p>
 
           {job.flags && job.flags.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-1.5">
@@ -682,11 +701,27 @@ function JobCard({ job, applied, onOpen }: JobCardProps) {
         </div>
       </div>
 
-      {job.description_summary && (
-        <p className="mt-3 border-t border-border/60 pt-2.5 text-xs leading-relaxed text-muted-foreground">
-          {job.description_summary}
-        </p>
-      )}
+      {/* Footer: samenvatting + datum · locatie · werkvorm */}
+      <div className="mt-3 border-t border-border/60 pt-2.5">
+        {job.description_summary && (
+          <p className="text-xs leading-relaxed text-muted-foreground">{job.description_summary}</p>
+        )}
+        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] font-medium text-muted-foreground">
+          {posted && (
+            <span className="inline-flex items-center gap-1">
+              <Calendar className="h-3.5 w-3.5" /> {posted}
+            </span>
+          )}
+          <span className="inline-flex items-center gap-1">
+            <MapPin className="h-3.5 w-3.5" /> {job.location || "—"}
+          </span>
+          {remoteLabel && (
+            <span className="inline-flex items-center gap-1">
+              <Building2 className="h-3.5 w-3.5" /> {remoteLabel}
+            </span>
+          )}
+        </div>
+      </div>
     </article>
   );
 }
