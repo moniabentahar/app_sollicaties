@@ -161,7 +161,7 @@ SITE_URLS: dict[str, list[str]] = {
         "https://www.michaelpage.be/jobs/head-of-marketing",
     ],
     "robertwalters": [
-        "https://www.robertwalters.be/marketing-jobs.html",
+        "https://www.robertwalters.be/nl/expertise/sales-and-marketing/marketing-communicatie-jobs.html",
     ],
     "hudson": [
         "https://www.hudsonsolutions.com/nl-be",
@@ -169,7 +169,7 @@ SITE_URLS: dict[str, list[str]] = {
 
     # ── 3. Interim Management & Freelance Opdrachten ────────────────────
     "mindsandmore": [
-        "https://www.mindsandmore.be/nl/opdrachten?q=marketing",
+        "https://mindsandmore.biz/nl/bij-ons-werken/",
     ],
     "roberthalf": [
         "https://www.roberthalf.com/be/en/jobs?query=marketing+manager",
@@ -187,7 +187,7 @@ SITE_URLS: dict[str, list[str]] = {
 
     # ── 4. Marketing, Communicatie & Digitale Profielen ──────────────────
     "bloovi": [
-        "https://www.bloovi.be/jobs?q=marketing",
+        "https://werkenbij.bloovi.be/nl/vacatures",
     ],
     "brightplus": [
         "https://www.brightplus.be/nl/vind-een-job/jobs-in-marketing-en-communicatie/",
@@ -195,7 +195,7 @@ SITE_URLS: dict[str, list[str]] = {
 
     # ── 5. Sport, Sponsoring, Events & Entertainment ────────────────────
     "sportcareers": [
-        "https://www.sportcareers.be/vacatures",
+        "https://www.sportcareers.be/nl/vacatures",
     ],
     "golazo": [
         "https://www.golazo.com/jobs",
@@ -203,11 +203,10 @@ SITE_URLS: dict[str, list[str]] = {
 
     # ── 6. Overheid & Semi-Overheid ─────────────────────────────────────
     "werkenvoor": [
-        "https://www.werkenvoor.be/nl/vacatures?q=marketing",
-        "https://www.werkenvoor.be/nl/vacatures?q=communicatie",
+        "https://werkenvoor.be/nl/jobs",
     ],
     "vlaamseoverheid": [
-        "https://www.vlaanderen.be/vacatures-bij-de-vlaamse-overheid?trefwoord=marketing",
+        "https://www.vlaanderen.be/vacatures-bij-de-vlaamse-overheid",
     ],
     "stadgent": [
         "https://jobs.stad.gent",
