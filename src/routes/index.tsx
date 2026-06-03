@@ -155,13 +155,6 @@ function App() {
 
   async function handleRunScan() {
     if (scanning) return;
-    if (isPreview) {
-      toast.info("Scan vereist de lokale server.", {
-        description: "Start uvicorn api:app --reload en open http://localhost:8000 om echt te scannen.",
-        duration: 6000,
-      });
-      return;
-    }
     setScanning(true);
     try {
       const result = await api.runScan();
@@ -177,7 +170,7 @@ function App() {
       }
     } catch {
       setScanning(false);
-      toast.error("Scan kon niet starten — probeer opnieuw.");
+      toast.error("Scan kon niet starten.");
     }
   }
 
