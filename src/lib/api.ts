@@ -50,9 +50,20 @@ export interface ScanResult {
   listings: Listing[]
 }
 
-async function getJson<T>(url: string): Promise<T> {
-  const res = await fetch(url)
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText} — ${url}`)
+// Base URL for the backend. Empty = same origin (local dev / FastAPI-served).
+// Set VITE_API_BASE_URL (e.g. https://xxx.onrender.com) so a hosted frontend
+// (Lovable) can reach a hosted backend.
+const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/+$/, "")
+// Optional shared secret to authorise the scan trigger on the hosted backend.
+const SCAN_TOKEN = (import.meta.env.VITE_SCAN_TOKEN ?? "").trim()
+
+function apiUrl(path: string): string {
+  return `${API_BASE}${path}`
+}
+
+async function getJson<T>(path: string): Promise<T> {
+  const res = await fetch(apiUrl(path))
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText} — ${path}`)
   return res.json() as Promise<T>
 }
 
@@ -64,7 +75,9 @@ export const api = {
   status: () => getJson<{ running: boolean }>("/api/scan/status"),
 
   async runScan(): Promise<"started" | "already-running"> {
-    const res = await fetch("/api/scan/run", { method: "POST" })
+    const headers: Record<string, string> = {}
+    if (SCAN_TOKEN) headers["X-Scan-Token"] = SCAN_TOKEN
+    const res = await fetch(apiUrl("/api/scan/run"), { method: "POST", headers })
     if (res.status === 409) return "already-running"
     if (!res.ok) throw new Error("scan failed to start")
     return "started"
@@ -76,7 +89,7 @@ export const api = {
 
   async saveApplication(job: Listing, letter?: string): Promise<{ ok: boolean; job_id: string }> {
     const body = letter ? { ...job, cover_letter: letter } : job
-    const res = await fetch("/api/applications", {
+    const res = await fetch(apiUrl("/api/applications"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -86,12 +99,12 @@ export const api = {
   },
 
   async deleteApplication(jobId: string): Promise<void> {
-    const res = await fetch(`/api/applications/${jobId}`, { method: "DELETE" })
+    const res = await fetch(apiUrl(`/api/applications/${jobId}`), { method: "DELETE" })
     if (!res.ok) throw new Error("could not delete application")
   },
 
   async generateLetter(job: Listing): Promise<string> {
-    const res = await fetch("/api/generate-letter", {
+    const res = await fetch(apiUrl("/api/generate-letter"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(job),

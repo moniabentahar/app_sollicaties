@@ -16,6 +16,7 @@ from zoneinfo import ZoneInfo
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -47,9 +48,24 @@ async def lifespan(_app: FastAPI):
 
 app = FastAPI(title="Sollicitaties2026 API", lifespan=lifespan)
 
+# Allow the hosted frontend (e.g. Lovable) to call this backend cross-origin.
+# Set ALLOWED_ORIGINS to a comma-separated list of URLs, or "*" (default).
+_origins = os.getenv("ALLOWED_ORIGINS", "*").strip()
+_allow_origins = ["*"] if _origins == "*" else [o.strip() for o in _origins.split(",") if o.strip()]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_allow_origins,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 DOCS_DIR = Path("docs/vacatures")
 FRONTEND_DIR = Path("frontend")
 APPLIED_DB = Path("docs/applied_jobs.json")
+
+# Optional shared secret that protects the (expensive) scan trigger.
+# When set, /api/scan/run requires the matching X-Scan-Token header.
+SCAN_TOKEN = os.getenv("SCAN_TOKEN", "").strip()
 
 _scan_running = False
 
@@ -283,10 +299,13 @@ def get_scan(filename: str) -> dict:
 @app.post("/api/scan/run")
 async def trigger_scan(
     background_tasks: BackgroundTasks,
+    request: Request,
     site: str | None = None,
     min_score: int = 1,
 ) -> dict:
     global _scan_running
+    if SCAN_TOKEN and request.headers.get("X-Scan-Token", "") != SCAN_TOKEN:
+        raise HTTPException(401, "Invalid or missing scan token")
     if _scan_running:
         raise HTTPException(409, "A scan is already running")
     background_tasks.add_task(_run_scan, site=site, min_score=min_score)

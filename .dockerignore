@@ -1,0 +1,21 @@
+# Keep the backend image small and secret-free.
+.git
+.github
+node_modules
+frontend/node_modules
+frontend/dist
+frontend/.vite
+dist
+.vite
+*.log
+__pycache__
+**/__pycache__
+.pytest_cache
+.venv
+venv
+env
+.playwright-mcp
+
+# NEVER ship secrets into the image — set them as platform env vars instead.
+.env
+config/.env

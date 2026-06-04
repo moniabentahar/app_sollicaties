@@ -1,0 +1,19 @@
+# Render Blueprint — one place to deploy the Sollicitaties2026 backend.
+# In Render: New → Blueprint → connect this repo. Render reads this file.
+# Then fill in the secret env vars (marked sync:false) in the dashboard.
+services:
+  - type: web
+    name: sollicitaties-backend
+    runtime: docker
+    region: frankfurt # closest to Belgium
+    plan: starter # ~€7/mo, always-on. Upgrade to "standard" (2GB) if the browser runs out of memory.
+    healthCheckPath: /api/scan/status
+    envVars:
+      - key: ANTHROPIC_API_KEY # your sk-ant-... key (set in dashboard, never commit)
+        sync: false
+      - key: SCAN_TOKEN # any long random string; protects the scan trigger
+        sync: false
+      - key: ALLOWED_ORIGINS # "*" or your Lovable URL, comma-separated
+        value: "*"
+      - key: SOLLICITATIES_FETCHER # dynamic = Playwright Chromium (reliable in Docker)
+        value: dynamic

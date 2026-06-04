@@ -273,21 +273,37 @@ class ScraplingExtractor:
 
     @staticmethod
     def _make_fetcher(use_browser: bool):
+        """Pick a fetcher. Override with SOLLICITATIES_FETCHER=http|dynamic|stealth.
+
+        - http:    fast TLS-impersonating HTTP, no browser (works on tiny servers)
+        - dynamic: Playwright Chromium — reliable in Docker (recommended when hosted)
+        - stealth: camoufox stealth browser — best anti-bot, heavier (local default)
+        """
         from scrapling.fetchers import Fetcher
 
-        if not use_browser:
+        choice = os.getenv("SOLLICITATIES_FETCHER", "").strip().lower()
+        if not choice:
+            choice = "stealth" if use_browser else "http"
+
+        if choice == "http":
             return lambda url: Fetcher.get(url, timeout=30)
 
-        # Stealth browser bypasses JS/anti-bot but needs `scrapling install`.
+        if choice == "dynamic":
+            try:
+                from scrapling.fetchers import DynamicFetcher
+
+                return lambda url: DynamicFetcher.fetch(url, headless=True, network_idle=True)
+            except Exception:
+                print("  [warn] DynamicFetcher unavailable; using HTTP fetcher.")
+                return lambda url: Fetcher.get(url, timeout=30)
+
         try:
             from scrapling.fetchers import StealthyFetcher
 
             return lambda url: StealthyFetcher.fetch(url, headless=True, network_idle=True)
         except Exception:
-            from scrapling.fetchers import Fetcher as _F
-
-            print("  [warn] browser fetcher unavailable; run `scrapling install`. Using HTTP fetcher.")
-            return lambda url: _F.get(url, timeout=30)
+            print("  [warn] StealthyFetcher unavailable; run `scrapling install`. Using HTTP fetcher.")
+            return lambda url: Fetcher.get(url, timeout=30)
 
     def _fetch_html(self, url: str, source_site: str) -> Optional[str]:
         try:
