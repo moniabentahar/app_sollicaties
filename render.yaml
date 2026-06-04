@@ -8,6 +8,11 @@ services:
     region: frankfurt # closest to Belgium
     plan: starter # ~€7/mo, always-on. Upgrade to "standard" (2GB) if the browser runs out of memory.
     healthCheckPath: /api/scan/status
+    # Persist scans + applied jobs across restarts/redeploys.
+    disk:
+      name: data
+      mountPath: /app/docs
+      sizeGB: 1
     envVars:
       - key: ANTHROPIC_API_KEY # your sk-ant-... key (set in dashboard, never commit)
         sync: false
