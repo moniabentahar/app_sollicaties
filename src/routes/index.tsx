@@ -165,9 +165,8 @@ function App() {
   async function handleRunScan() {
     if (scanning) return;
     if (isPreview) {
-      toast.info("Scannen werkt alleen in de lokale app", {
-        description:
-          "Start de Python-backend (uvicorn) en open de app lokaal. In deze online preview zie je voorbeelddata.",
+      toast.info("Verbind eerst je backend", {
+        description: "Plak je backend-URL in het vak hierboven en klik Verbind.",
         duration: 7000,
       });
       return;
@@ -528,6 +527,48 @@ function App() {
 
 // ── Sub-components ────────────────────────────────────────────────────
 
+/** Lets the user point the app at their backend (saved in the browser, so it
+ *  works on Lovable without any rebuild and survives changing tunnel URLs). */
+function ConnectBackend() {
+  const [url, setUrl] = useState(() =>
+    typeof window !== "undefined" ? localStorage.getItem("apiBaseUrl") ?? "" : "",
+  );
+  const [token, setToken] = useState(() =>
+    typeof window !== "undefined" ? localStorage.getItem("scanToken") ?? "" : "",
+  );
+
+  function connect() {
+    localStorage.setItem("apiBaseUrl", url.trim().replace(/\/+$/, ""));
+    localStorage.setItem("scanToken", token.trim());
+    window.location.reload();
+  }
+
+  return (
+    <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3">
+      <p className="mb-2 text-xs font-semibold text-amber-800">
+        Verbind je online backend om te kunnen scannen — plak de tunnel-URL:
+      </p>
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <input
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder="https://....trycloudflare.com"
+          className="flex-1 rounded-md border border-input bg-card px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring/40"
+        />
+        <input
+          value={token}
+          onChange={(e) => setToken(e.target.value)}
+          placeholder="scan-token"
+          className="rounded-md border border-input bg-card px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring/40 sm:w-44"
+        />
+        <Button onClick={connect} disabled={!url.trim()}>
+          Verbind
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 interface ScanHeroProps {
   scanning: boolean;
   currentFile: string;
@@ -547,11 +588,7 @@ function ScanHero({ scanning, currentFile, schedule, isPreview, onScan }: ScanHe
           <p className="text-sm text-muted-foreground">
             Doorzoekt alle Belgische jobsites en matcht vacatures op jouw profiel
           </p>
-          {isPreview && (
-            <p className="text-xs font-medium text-amber-600">
-              Voorbeeldmodus — de scan draait alleen in de lokale app met de Python-backend.
-            </p>
-          )}
+          {isPreview && <ConnectBackend />}
           {currentFile && !isPreview && (
             <p className="text-xs text-muted-foreground">
               Laatste scan: {parseScanFileName(currentFile)}

@@ -50,12 +50,21 @@ export interface ScanResult {
   listings: Listing[]
 }
 
-// Base URL for the backend. Empty = same origin (local dev / FastAPI-served).
-// Set VITE_API_BASE_URL (e.g. https://xxx.onrender.com) so a hosted frontend
-// (Lovable) can reach a hosted backend.
-const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/+$/, "")
-// Optional shared secret to authorise the scan trigger on the hosted backend.
-const SCAN_TOKEN = (import.meta.env.VITE_SCAN_TOKEN ?? "").trim()
+function fromStore(key: string): string {
+  if (typeof window !== "undefined" && window.localStorage) {
+    return window.localStorage.getItem(key) ?? ""
+  }
+  return ""
+}
+
+// Backend location. Runtime config (saved in the browser via the "Verbind
+// backend" form) wins over the build-time env var, so the URL can be set or
+// changed in the UI without rebuilding — which is what makes this work on
+// Lovable (where build-time VITE_ vars are not reliably injected).
+// Empty = same origin (local dev / FastAPI-served).
+const API_BASE = (fromStore("apiBaseUrl") || (import.meta.env.VITE_API_BASE_URL ?? "")).replace(/\/+$/, "")
+// Shared secret that authorises the scan trigger on the hosted backend.
+const SCAN_TOKEN = (fromStore("scanToken") || (import.meta.env.VITE_SCAN_TOKEN ?? "")).trim()
 
 function apiUrl(path: string): string {
   return `${API_BASE}${path}`
