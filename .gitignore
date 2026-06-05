@@ -39,3 +39,7 @@ docs/applied_jobs.json
 
 # Logs
 *.log
+
+# Local tunnel binary + start script (contains the scan token — keep local)
+cloudflared.exe
+scripts/start-online.bat
