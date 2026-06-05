@@ -1,7 +1,15 @@
 # Backend for Sollicitaties2026 — FastAPI + Scrapling (Playwright) + Claude.
-# The official Playwright Python image ships Chromium + every OS library the
-# headless browser needs, which is what makes the --browser scan work in the cloud.
+# Tuned to run on Hugging Face Spaces (free, no card) which runs the container
+# as uid 1000. The official Playwright image ships Chromium + all OS libs.
 FROM mcr.microsoft.com/playwright/python:v1.59.0-jammy
+
+# Browsers in the base image live here and are world-readable — point
+# Scrapling/patchright at them so no per-user reinstall is needed at runtime.
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
+    PYTHONUNBUFFERED=1 \
+    PYTHONUTF8=1 \
+    SOLLICITATIES_FETCHER=dynamic \
+    HF_HOME=/tmp/hf
 
 WORKDIR /app
 
@@ -9,15 +17,15 @@ WORKDIR /app
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Browser engines Scrapling drives (Chromium for DynamicFetcher, camoufox for stealth).
-RUN python -m scrapling install || true
+# Make sure the browser Scrapling drives is installed + world-readable.
+RUN python -m scrapling install || true \
+    && chmod -R a+rX /ms-playwright || true
 
 # Application code (secrets are excluded via .dockerignore).
 COPY . ./
 
-ENV PYTHONUNBUFFERED=1 \
-    PYTHONUTF8=1 \
-    SOLLICITATIES_FETCHER=dynamic
+# Hugging Face runs the container as uid 1000 — runtime dirs must be writable.
+RUN mkdir -p docs/vacatures && chmod -R 777 docs
 
-# Hosting platforms (Render, Railway, Fly) inject $PORT; default to 8000 locally.
+# Hosting platforms inject $PORT; Hugging Face uses app_port from README (8000).
 CMD ["sh", "-c", "python -m uvicorn api:app --host 0.0.0.0 --port ${PORT:-8000}"]
