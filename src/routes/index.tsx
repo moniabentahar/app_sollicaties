@@ -172,13 +172,6 @@ function App() {
 
   async function handleUploadCv(file: File) {
     if (uploading || scanning) return;
-    if (isPreview) {
-      toast.info("Verbind eerst je backend", {
-        description: "Plak je backend-URL in het vak hierboven en klik Verbind.",
-        duration: 7000,
-      });
-      return;
-    }
     setUploading(true);
     try {
       const prof = await api.uploadCv(file);
@@ -199,13 +192,6 @@ function App() {
 
   async function handleRunScan() {
     if (scanning) return;
-    if (isPreview) {
-      toast.info("Verbind eerst je backend", {
-        description: "Plak je backend-URL in het vak hierboven en klik Verbind.",
-        duration: 7000,
-      });
-      return;
-    }
     setScanning(true);
     try {
       const result = await api.runScan();
@@ -584,48 +570,6 @@ function App() {
 
 // ── Sub-components ────────────────────────────────────────────────────
 
-/** Lets the user point the app at their backend (saved in the browser, so it
- *  works on Lovable without any rebuild and survives changing tunnel URLs). */
-function ConnectBackend() {
-  const [url, setUrl] = useState(() =>
-    typeof window !== "undefined" ? localStorage.getItem("apiBaseUrl") ?? "" : "",
-  );
-  const [token, setToken] = useState(() =>
-    typeof window !== "undefined" ? localStorage.getItem("scanToken") ?? "" : "",
-  );
-
-  function connect() {
-    localStorage.setItem("apiBaseUrl", url.trim().replace(/\/+$/, ""));
-    localStorage.setItem("scanToken", token.trim());
-    window.location.reload();
-  }
-
-  return (
-    <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3">
-      <p className="mb-2 text-xs font-semibold text-amber-800">
-        Verbind je online backend om te kunnen scannen — plak de tunnel-URL:
-      </p>
-      <div className="flex flex-col gap-2 sm:flex-row">
-        <input
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          placeholder="https://....trycloudflare.com"
-          className="flex-1 rounded-md border border-input bg-card px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring/40"
-        />
-        <input
-          value={token}
-          onChange={(e) => setToken(e.target.value)}
-          placeholder="scan-token"
-          className="rounded-md border border-input bg-card px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring/40 sm:w-44"
-        />
-        <Button onClick={connect} disabled={!url.trim()}>
-          Verbind
-        </Button>
-      </div>
-    </div>
-  );
-}
-
 interface ScanHeroProps {
   scanning: boolean;
   uploading: boolean;
@@ -659,7 +603,6 @@ function ScanHero({
           <p className="text-sm text-muted-foreground">
             Upload een CV en doorzoek alle Belgische jobsites op een match met dat profiel
           </p>
-          {isPreview && <ConnectBackend />}
           {!isPreview && !profileName && (
             <p className="text-xs font-medium text-accent">
               Upload eerst een CV (PDF) om het kandidaatprofiel te bepalen.

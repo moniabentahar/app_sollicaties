@@ -53,21 +53,11 @@ export interface ScanResult {
   listings: Listing[]
 }
 
-function fromStore(key: string): string {
-  if (typeof window !== "undefined" && window.localStorage) {
-    return window.localStorage.getItem(key) ?? ""
-  }
-  return ""
-}
-
-// Backend location. Runtime config (saved in the browser via the "Verbind
-// backend" form) wins over the build-time env var, so the URL can be set or
-// changed in the UI without rebuilding — which is what makes this work on
-// Lovable (where build-time VITE_ vars are not reliably injected).
-// Empty = same origin (local dev / FastAPI-served).
-const API_BASE = (fromStore("apiBaseUrl") || (import.meta.env.VITE_API_BASE_URL ?? "")).replace(/\/+$/, "")
-// Shared secret that authorises the scan trigger on the hosted backend.
-const SCAN_TOKEN = (fromStore("scanToken") || (import.meta.env.VITE_SCAN_TOKEN ?? "")).trim()
+// Fixed backend location. The app always talks to this one official backend —
+// there is no in-app form to point it elsewhere. Override at build time with
+// VITE_API_BASE_URL if you ever move the backend.
+const DEFAULT_BACKEND = "https://ai-bruno-sollicitaties-backend.hf.space"
+const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? DEFAULT_BACKEND).replace(/\/+$/, "")
 
 function apiUrl(path: string): string {
   return `${API_BASE}${path}`
@@ -103,9 +93,7 @@ export const api = {
   },
 
   async runScan(): Promise<"started" | "already-running"> {
-    const headers: Record<string, string> = {}
-    if (SCAN_TOKEN) headers["X-Scan-Token"] = SCAN_TOKEN
-    const res = await fetch(apiUrl("/api/scan/run"), { method: "POST", headers })
+    const res = await fetch(apiUrl("/api/scan/run"), { method: "POST" })
     if (res.status === 409) return "already-running"
     if (!res.ok) throw new Error("scan failed to start")
     return "started"
