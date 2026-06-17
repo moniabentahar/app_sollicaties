@@ -12,7 +12,9 @@ apply to any Belgium-based candidate, so they stay static.
 import json
 from pathlib import Path
 
-ACTIVE_PROFILE_PATH = Path("config/profile.json")
+# Stored under docs/ so it lives on the persistent disk on Render (mountPath
+# /app/docs) and survives restarts/redeploys, alongside scans and applied jobs.
+ACTIVE_PROFILE_PATH = Path("docs/profile.json")
 
 # Empty/neutral profile used until a CV has been uploaded.
 EMPTY_PROFILE: dict = {
