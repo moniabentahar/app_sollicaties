@@ -75,7 +75,7 @@ APPLIED_DB = Path("docs/applied_jobs.json")
 SCAN_TOKEN = os.getenv("SCAN_TOKEN", "").strip()
 
 # Hard cap on a single scan run so a hanging site can't block scans forever.
-SCAN_TIMEOUT_SECONDS = int(os.getenv("SCAN_TIMEOUT_SECONDS", "600"))
+SCAN_TIMEOUT_SECONDS = int(os.getenv("SCAN_TIMEOUT_SECONDS", "300"))
 
 _scan_running = False
 
