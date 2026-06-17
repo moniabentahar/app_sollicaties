@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Search, ExternalLink, CheckCircle2, Loader2, Calendar, MapPin, Building2 } from "lucide-react";
+import { Search, ExternalLink, CheckCircle2, Loader2, Calendar, MapPin, Building2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import demoData from "@/data/listings.json";
 
@@ -71,6 +71,7 @@ function App() {
   const [selectedFile, setSelectedFile] = useState("");
   const [currentFile, setCurrentFile] = useState(demoData.file);
   const [scanning, setScanning] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [schedule, setSchedule] = useState<ScheduleInfo | null>(null);
   const [isPreview, setIsPreview] = useState(true);
 
@@ -161,6 +162,33 @@ function App() {
       }
     }, POLL_INTERVAL_MS);
   }, []);
+
+  async function handleUploadCv(file: File) {
+    if (uploading || scanning) return;
+    if (isPreview) {
+      toast.info("Verbind eerst je backend", {
+        description: "Plak je backend-URL in het vak hierboven en klik Verbind.",
+        duration: 7000,
+      });
+      return;
+    }
+    setUploading(true);
+    try {
+      const prof = await api.uploadCv(file);
+      setProfile(prof);
+      toast.success("CV verwerkt!", {
+        description: `Profiel voor ${prof.name || "kandidaat"} aangemaakt. De scan start nu.`,
+        duration: 6000,
+      });
+      setUploading(false);
+      await handleRunScan();
+    } catch (err) {
+      setUploading(false);
+      toast.error("CV kon niet verwerkt worden.", {
+        description: err instanceof Error ? err.message : undefined,
+      });
+    }
+  }
 
   async function handleRunScan() {
     if (scanning) return;
@@ -352,10 +380,13 @@ function App() {
         {/* Scan hero */}
         <ScanHero
           scanning={scanning}
+          uploading={uploading}
+          profileName={profile?.name ?? ""}
           currentFile={currentFile}
           schedule={schedule}
           isPreview={isPreview}
           onScan={handleRunScan}
+          onUploadCv={handleUploadCv}
         />
 
         {/* Stat cards */}
@@ -571,14 +602,28 @@ function ConnectBackend() {
 
 interface ScanHeroProps {
   scanning: boolean;
+  uploading: boolean;
+  profileName: string;
   currentFile: string;
   schedule: ScheduleInfo | null;
   isPreview: boolean;
   onScan: () => void;
+  onUploadCv: (file: File) => void;
 }
 
-function ScanHero({ scanning, currentFile, schedule, isPreview, onScan }: ScanHeroProps) {
+function ScanHero({
+  scanning,
+  uploading,
+  profileName,
+  currentFile,
+  schedule,
+  isPreview,
+  onScan,
+  onUploadCv,
+}: ScanHeroProps) {
   const nextLabel = schedule?.next_run ? formatNextScan(schedule.next_run) : null;
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const busy = scanning || uploading;
 
   return (
     <div className="mb-8 overflow-hidden rounded-2xl border bg-card shadow-sm">
@@ -586,9 +631,19 @@ function ScanHero({ scanning, currentFile, schedule, isPreview, onScan }: ScanHe
         <div className="space-y-1">
           <h2 className="font-display text-xl font-bold tracking-tight">Vacatures scannen</h2>
           <p className="text-sm text-muted-foreground">
-            Doorzoekt alle Belgische jobsites en matcht vacatures op jouw profiel
+            Upload een CV en doorzoek alle Belgische jobsites op een match met dat profiel
           </p>
           {isPreview && <ConnectBackend />}
+          {!isPreview && !profileName && (
+            <p className="text-xs font-medium text-accent">
+              Upload eerst een CV (PDF) om het kandidaatprofiel te bepalen.
+            </p>
+          )}
+          {!isPreview && profileName && (
+            <p className="text-xs text-muted-foreground">
+              Profiel: <span className="font-medium text-foreground">{profileName}</span>
+            </p>
+          )}
           {currentFile && !isPreview && (
             <p className="text-xs text-muted-foreground">
               Laatste scan: {parseScanFileName(currentFile)}
@@ -606,24 +661,57 @@ function ScanHero({ scanning, currentFile, schedule, isPreview, onScan }: ScanHe
           )}
         </div>
 
-        <Button
-          size="lg"
-          onClick={onScan}
-          disabled={scanning}
-          className="min-w-[160px] gap-2 text-base"
-        >
-          {scanning ? (
-            <>
-              <Loader2 className="h-5 w-5 animate-spin" />
-              Bezig…
-            </>
-          ) : (
-            <>
-              <Search className="h-5 w-5" />
-              Start scan
-            </>
-          )}
-        </Button>
+        <div className="flex flex-wrap items-center gap-3">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/pdf,.pdf"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) onUploadCv(file);
+              e.target.value = "";
+            }}
+          />
+          <Button
+            size="lg"
+            variant="outline"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={busy}
+            className="min-w-[160px] gap-2 text-base"
+          >
+            {uploading ? (
+              <>
+                <Loader2 className="h-5 w-5 animate-spin" />
+                CV verwerken…
+              </>
+            ) : (
+              <>
+                <Upload className="h-5 w-5" />
+                Upload CV
+              </>
+            )}
+          </Button>
+
+          <Button
+            size="lg"
+            onClick={onScan}
+            disabled={busy}
+            className="min-w-[160px] gap-2 text-base"
+          >
+            {scanning ? (
+              <>
+                <Loader2 className="h-5 w-5 animate-spin" />
+                Bezig…
+              </>
+            ) : (
+              <>
+                <Search className="h-5 w-5" />
+                Start scan
+              </>
+            )}
+          </Button>
+        </div>
       </div>
 
       {scanning && !isPreview && (

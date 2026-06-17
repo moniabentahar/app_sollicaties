@@ -6,9 +6,12 @@ export type Tier = "strong" | "consider" | "low"
 export interface Profile {
   name: string
   location: string
+  email?: string
+  phone?: string
   target_titles: string[]
   core_skills: string[]
   languages: string[]
+  has_profile?: boolean
 }
 
 export interface Listing {
@@ -62,6 +65,22 @@ export const api = {
   latest: () => getJson<ScanResult>("/api/scan/latest"),
   scan: (name: string) => getJson<ScanResult>(`/api/scan/${encodeURIComponent(name)}`),
   status: () => getJson<{ running: boolean }>("/api/scan/status"),
+
+  async uploadCv(file: File): Promise<Profile> {
+    const form = new FormData()
+    form.append("file", file)
+    const res = await fetch("/api/profile/upload", { method: "POST", body: form })
+    if (!res.ok) {
+      let detail = "could not read the CV"
+      try {
+        detail = ((await res.json()) as { detail?: string }).detail ?? detail
+      } catch {
+        /* keep default */
+      }
+      throw new Error(detail)
+    }
+    return res.json() as Promise<Profile>
+  },
 
   async runScan(): Promise<"started" | "already-running"> {
     const res = await fetch("/api/scan/run", { method: "POST" })

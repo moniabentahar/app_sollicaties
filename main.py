@@ -22,7 +22,7 @@ from src.scraper import ALL_CATEGORIES, SITE_URLS, scrape_sites
 
 app = typer.Typer(
     name="sollicitaties",
-    help="Find marketing jobs matching the candidate's profile (Scrapling + Claude extraction).",
+    help="Find jobs matching the uploaded CV's profile (Scrapling + Claude extraction).",
     no_args_is_help=True,
 )
 console = Console()
@@ -72,7 +72,7 @@ def run(
         help="Use the Scrapling stealth browser (JS/anti-bot sites). Needs `scrapling install`.",
     ),
 ):
-    """Scrape job sites and rank listings against the candidate's profile."""
+    """Scrape job sites and rank listings against the uploaded CV's profile."""
     api_key = _load_api_key()
 
     # Resolve which sites to scan: --site > --category > all

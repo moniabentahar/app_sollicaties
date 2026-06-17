@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Search, ExternalLink, CheckCircle2, Loader2 } from "lucide-react"
+import { Search, ExternalLink, CheckCircle2, Loader2, Upload } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -40,6 +40,7 @@ export default function App() {
   const [currentFile, setCurrentFile] = useState("")
   const [loading, setLoading] = useState(true)
   const [scanning, setScanning] = useState(false)
+  const [uploading, setUploading] = useState(false)
   const [schedule, setSchedule] = useState<ScheduleInfo | null>(null)
 
   const [query, setQuery] = useState("")
@@ -123,6 +124,19 @@ export default function App() {
       }
     }, POLL_INTERVAL_MS)
   }, [loadScans, loadLatest])
+
+  async function handleUploadCv(file: File) {
+    if (uploading || scanning) return
+    setUploading(true)
+    try {
+      const prof = await api.uploadCv(file)
+      setProfile(prof)
+      setUploading(false)
+      await handleRunScan()
+    } catch {
+      setUploading(false)
+    }
+  }
 
   async function handleRunScan() {
     if (scanning) return
@@ -293,9 +307,12 @@ export default function App() {
         {/* Scan hero */}
         <ScanHero
           scanning={scanning}
+          uploading={uploading}
+          profileName={profile?.name ?? ""}
           currentFile={currentFile}
           schedule={schedule}
           onScan={handleRunScan}
+          onUploadCv={handleUploadCv}
         />
 
         {/* Stat cards */}
@@ -473,13 +490,18 @@ export default function App() {
 
 interface ScanHeroProps {
   scanning: boolean
+  uploading: boolean
+  profileName: string
   currentFile: string
   schedule: ScheduleInfo | null
   onScan: () => void
+  onUploadCv: (file: File) => void
 }
 
-function ScanHero({ scanning, currentFile, schedule, onScan }: ScanHeroProps) {
+function ScanHero({ scanning, uploading, profileName, currentFile, schedule, onScan, onUploadCv }: ScanHeroProps) {
   const nextLabel = schedule?.next_run ? formatNextScan(schedule.next_run) : null
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const busy = scanning || uploading
 
   return (
     <div className="mb-8 overflow-hidden rounded-2xl border bg-card shadow-sm">
@@ -487,8 +509,18 @@ function ScanHero({ scanning, currentFile, schedule, onScan }: ScanHeroProps) {
         <div className="space-y-1">
           <h2 className="font-display text-xl font-bold tracking-tight">Vacatures scannen</h2>
           <p className="text-sm text-muted-foreground">
-            Doorzoekt alle Belgische jobsites en matcht vacatures op jouw profiel
+            Upload een CV en doorzoek alle Belgische jobsites op een match met dat profiel
           </p>
+          {!profileName && (
+            <p className="text-xs font-medium text-accent">
+              Upload eerst een CV (PDF) om het kandidaatprofiel te bepalen.
+            </p>
+          )}
+          {profileName && (
+            <p className="text-xs text-muted-foreground">
+              Profiel: <span className="font-medium text-foreground">{profileName}</span>
+            </p>
+          )}
           {currentFile && (
             <p className="text-xs text-muted-foreground">
               Laatste scan: {parseScanFileName(currentFile)}
@@ -505,24 +537,57 @@ function ScanHero({ scanning, currentFile, schedule, onScan }: ScanHeroProps) {
           )}
         </div>
 
-        <Button
-          size="lg"
-          onClick={onScan}
-          disabled={scanning}
-          className="min-w-[160px] gap-2 text-base"
-        >
-          {scanning ? (
-            <>
-              <Loader2 className="h-5 w-5 animate-spin" />
-              Bezig…
-            </>
-          ) : (
-            <>
-              <Search className="h-5 w-5" />
-              Start scan
-            </>
-          )}
-        </Button>
+        <div className="flex flex-wrap items-center gap-3">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/pdf,.pdf"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              if (file) onUploadCv(file)
+              e.target.value = ""
+            }}
+          />
+          <Button
+            size="lg"
+            variant="outline"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={busy}
+            className="min-w-[160px] gap-2 text-base"
+          >
+            {uploading ? (
+              <>
+                <Loader2 className="h-5 w-5 animate-spin" />
+                CV verwerken…
+              </>
+            ) : (
+              <>
+                <Upload className="h-5 w-5" />
+                Upload CV
+              </>
+            )}
+          </Button>
+
+          <Button
+            size="lg"
+            onClick={onScan}
+            disabled={busy}
+            className="min-w-[160px] gap-2 text-base"
+          >
+            {scanning ? (
+              <>
+                <Loader2 className="h-5 w-5 animate-spin" />
+                Bezig…
+              </>
+            ) : (
+              <>
+                <Search className="h-5 w-5" />
+                Start scan
+              </>
+            )}
+          </Button>
+        </div>
       </div>
 
       {scanning && (

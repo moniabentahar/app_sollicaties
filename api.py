@@ -15,20 +15,27 @@ from zoneinfo import ZoneInfo
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
-from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
+from dotenv import load_dotenv
+from fastapi import BackgroundTasks, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from src.profile import (
-    CANDIDATE_LOCATION,
-    CANDIDATE_NAME,
-    CORE_SKILLS,
-    LANGUAGES,
-    TARGET_TITLES,
-)
+from src.cv_extract import extract_and_save
+from src.profile import load_profile
 
 _BRUSSELS = ZoneInfo("Europe/Brussels")
+
+_ENV_CANDIDATES = [Path("config/.env"), Path(".env")]
+
+
+def _load_api_key() -> str:
+    """Load ANTHROPIC_API_KEY from config/.env or .env (same convention as main.py)."""
+    for p in _ENV_CANDIDATES:
+        if p.exists():
+            load_dotenv(p)
+            break
+    return os.getenv("ANTHROPIC_API_KEY", "").strip()
 _scheduler = AsyncIOScheduler(timezone=_BRUSSELS)
 
 
@@ -121,15 +128,34 @@ def _normalise_skills(raw: Any) -> list[str]:
     return []
 
 
+def _candidate_block(profile: dict) -> str:
+    """Header lines (name / location / contact) built from the uploaded CV's profile."""
+    lines = [profile.get("name") or "Candidate"]
+    if profile.get("location"):
+        lines.append(profile["location"])
+    contact = " | ".join(c for c in (profile.get("email"), profile.get("phone")) if c)
+    if contact:
+        lines.append(contact)
+    return "\n".join(lines)
+
+
 def _build_cover_letter(job: dict) -> str:
+    profile = load_profile()
+    if not (profile.get("name") or profile.get("core_skills")):
+        return "Upload a CV first to generate a personalised cover letter."
+
+    candidate_name = profile.get("name") or "Candidate"
+    header = _candidate_block(profile)
+
     lang = _detect_letter_language(job)
-    title = job.get("title", "Marketing Manager")
-    company = job.get("company", "uw bedrijf")
+    title = job.get("title", "")
+    company = job.get("company", "")
 
     raw_skills = _normalise_skills(job.get("skills", []))
-    core_lower = {s.lower() for s in CORE_SKILLS}
+    core_lower = {s.lower() for s in profile.get("core_skills", [])}
     matched = [s for s in raw_skills if s.lower() in core_lower]
-    skills_to_use = matched[:3] if matched else raw_skills[:3]
+    # Prefer skills shared by the job and the candidate; fall back to the candidate's own.
+    skills_to_use = (matched[:3] or raw_skills[:3] or list(profile.get("core_skills", []))[:3])
 
     now = datetime.now()
 
@@ -137,89 +163,75 @@ def _build_cover_letter(job: dict) -> str:
         months = ["janvier", "février", "mars", "avril", "mai", "juin",
                   "juillet", "août", "septembre", "octobre", "novembre", "décembre"]
         date_str = f"{now.day} {months[now.month - 1]} {now.year}"
-        skills_str = (", ".join(skills_to_use)
-                      if skills_to_use else "gestion de marque et stratégie marketing")
+        skills_str = ", ".join(skills_to_use) if skills_to_use else "mes domaines d'expertise"
         return (
-            f"the candidate\n"
-            f"Belgium, Flandre-Occidentale (Belgique)\n"
-            f"candidate@example.com\n\n"
+            f"{header}\n\n"
             f"{date_str}\n\n"
             f"{company}\n\n"
             f"Objet : Candidature — {title}\n\n"
             f"Madame, Monsieur,\n\n"
             f"C'est avec un vif intérêt que je vous soumets ma candidature pour le poste "
             f"de {title} au sein de {company}.\n\n"
-            f"Forte d'une solide expérience en marketing et communication, j'ai développé "
-            f"une expertise approfondie en brand management, sponsoring, gestion de campagnes "
-            f"ATL/BTL et management d'équipes. Mon parcours couvre aussi bien les environnements "
-            f"B2B que B2C, en Belgique et à l'international.\n\n"
+            f"Fort(e) d'une solide expérience professionnelle, j'ai développé une expertise "
+            f"approfondie en {skills_str}. Mon parcours m'a permis de mener à bien des projets "
+            f"exigeants, en Belgique comme à l'international.\n\n"
             f"Ma maîtrise de {skills_str} me permet d'apporter une vision à la fois stratégique "
-            f"et opérationnelle, en alignant les objectifs de marque avec des résultats business "
-            f"concrets et mesurables.\n\n"
-            f"Ce qui m'attire dans ce poste, c'est l'opportunité de contribuer activement au "
-            f"développement de la marque et de mettre mon expertise au service de vos équipes "
-            f"et de vos clients. Je suis convaincue que mon profil correspond à vos attentes.\n\n"
-            f"Je serais ravie de vous rencontrer pour vous présenter mon parcours en détail.\n\n"
+            f"et opérationnelle, en alignant les objectifs sur des résultats concrets et "
+            f"mesurables.\n\n"
+            f"Ce qui m'attire dans ce poste, c'est l'opportunité de mettre mon expertise au "
+            f"service de vos équipes. Je suis convaincu(e) que mon profil correspond à vos "
+            f"attentes.\n\n"
+            f"Je serais ravi(e) de vous rencontrer pour vous présenter mon parcours en détail.\n\n"
             f"Dans l'attente de votre retour, je vous adresse mes sincères salutations,\n\n"
-            f"the candidate"
+            f"{candidate_name}"
         )
 
     if lang == "en":
         months = ["January", "February", "March", "April", "May", "June",
                   "July", "August", "September", "October", "November", "December"]
         date_str = f"{months[now.month - 1]} {now.day}, {now.year}"
-        skills_str = (", ".join(skills_to_use)
-                      if skills_to_use else "brand management and marketing strategy")
+        skills_str = ", ".join(skills_to_use) if skills_to_use else "my areas of expertise"
         return (
-            f"the candidate\n"
-            f"Belgium, West Flanders, Belgium\n"
-            f"candidate@example.com\n\n"
+            f"{header}\n\n"
             f"{date_str}\n\n"
             f"{company}\n\n"
             f"Re: Application — {title}\n\n"
             f"Dear Hiring Manager,\n\n"
             f"I am writing to express my strong interest in the {title} position at {company}.\n\n"
-            f"With an extensive background in brand management, sponsorship, campaign strategy, "
-            f"and team leadership, I bring a proven track record of translating business objectives "
-            f"into impactful marketing initiatives across both B2B and B2C environments.\n\n"
+            f"With an extensive professional background, I bring a proven track record of "
+            f"translating objectives into concrete results across demanding projects, both in "
+            f"Belgium and internationally.\n\n"
             f"My expertise in {skills_str} enables me to deliver both strategic direction and "
-            f"hands-on execution — from developing integrated communications plans to managing "
-            f"cross-functional teams at all levels.\n\n"
-            f"I am particularly drawn to this role for the opportunity to drive meaningful brand "
-            f"and business impact. I am confident that my profile would be a strong addition to "
-            f"your team.\n\n"
+            f"hands-on execution.\n\n"
+            f"I am particularly drawn to this role for the opportunity to bring meaningful impact "
+            f"to your team. I am confident that my profile would be a strong addition.\n\n"
             f"I would welcome the opportunity to discuss how my background aligns with your needs.\n\n"
             f"Kind regards,\n\n"
-            f"the candidate"
+            f"{candidate_name}"
         )
 
     # nl (default)
     months = ["januari", "februari", "maart", "april", "mei", "juni",
               "juli", "augustus", "september", "oktober", "november", "december"]
     date_str = f"{now.day} {months[now.month - 1]} {now.year}"
-    skills_str = (", ".join(skills_to_use)
-                  if skills_to_use else "merkstrategie en campagnebeheer")
+    skills_str = ", ".join(skills_to_use) if skills_to_use else "mijn vakgebied"
     return (
-        f"the candidate\n"
-        f"Belgium, West-Vlaanderen\n"
-        f"candidate@example.com\n\n"
+        f"{header}\n\n"
         f"{date_str}\n\n"
         f"{company}\n\n"
         f"Betreft: Kandidatuur — {title}\n\n"
         f"Geachte heer / mevrouw,\n\n"
         f"Met oprechte interesse stel ik mijn kandidatuur voor de functie van {title} bij {company}.\n\n"
-        f"Als marketingprofessional met een brede achtergrond in brand management, sponsoring, "
-        f"campagnebeheer en teamleiding ben ik ervan overtuigd dat mijn profiel een sterke match "
-        f"is met wat u zoekt.\n\n"
+        f"Met een brede professionele achtergrond ben ik ervan overtuigd dat mijn profiel een "
+        f"sterke match is met wat u zoekt.\n\n"
         f"Mijn ervaring in {skills_str} stelt me in staat zowel strategisch als operationeel te "
-        f"denken en te handelen. Ik vertaal merkcommunicatie naar meetbare resultaten, zowel in "
-        f"B2B als B2C omgevingen.\n\n"
-        f"Wat mij aantrekt in deze functie, is de combinatie van strategische en creatieve "
-        f"verantwoordelijkheden die een echte impact hebben op het merk en de business. Ik werk "
-        f"graag in een dynamische omgeving waar visie en uitvoering hand in hand gaan.\n\n"
+        f"denken en te handelen, en doelstellingen te vertalen naar meetbare resultaten.\n\n"
+        f"Wat mij aantrekt in deze functie, is de kans om mijn expertise in te zetten voor uw "
+        f"team. Ik werk graag in een dynamische omgeving waar visie en uitvoering hand in hand "
+        f"gaan.\n\n"
         f"Graag licht ik mijn motivatie verder toe tijdens een persoonlijk gesprek.\n\n"
         f"Met vriendelijke groeten,\n\n"
-        f"the candidate"
+        f"{candidate_name}"
     )
 
 
@@ -229,12 +241,49 @@ def _build_cover_letter(job: dict) -> str:
 
 @app.get("/api/profile")
 def get_profile() -> dict:
+    """Return the active candidate profile (from the last uploaded CV)."""
+    p = load_profile()
     return {
-        "name": CANDIDATE_NAME,
-        "location": CANDIDATE_LOCATION,
-        "target_titles": sorted(TARGET_TITLES),
-        "core_skills": sorted(CORE_SKILLS),
-        "languages": sorted(LANGUAGES),
+        "name": p.get("name", ""),
+        "location": p.get("location", ""),
+        "email": p.get("email", ""),
+        "phone": p.get("phone", ""),
+        "target_titles": sorted(p.get("target_titles", [])),
+        "core_skills": sorted(p.get("core_skills", [])),
+        "languages": sorted(p.get("languages", [])),
+        "has_profile": bool(p.get("name") or p.get("target_titles") or p.get("core_skills")),
+    }
+
+
+@app.post("/api/profile/upload")
+async def upload_cv(file: UploadFile = File(...)) -> dict:
+    """Upload a CV (PDF); Claude extracts a job-search profile that becomes active."""
+    api_key = _load_api_key()
+    if not api_key:
+        raise HTTPException(500, "ANTHROPIC_API_KEY not configured (add it to config/.env).")
+
+    filename = (file.filename or "").lower()
+    if not filename.endswith(".pdf"):
+        raise HTTPException(400, "Please upload a PDF CV.")
+
+    pdf_bytes = await file.read()
+    if not pdf_bytes:
+        raise HTTPException(400, "The uploaded file is empty.")
+
+    try:
+        profile = await asyncio.to_thread(extract_and_save, pdf_bytes, api_key)
+    except Exception as exc:  # noqa: BLE001 — surface a clean message to the UI
+        raise HTTPException(502, f"Could not read the CV: {type(exc).__name__}: {str(exc)[:200]}")
+
+    return {
+        "name": profile.get("name", ""),
+        "location": profile.get("location", ""),
+        "email": profile.get("email", ""),
+        "phone": profile.get("phone", ""),
+        "target_titles": sorted(profile.get("target_titles", [])),
+        "core_skills": sorted(profile.get("core_skills", [])),
+        "languages": sorted(profile.get("languages", [])),
+        "has_profile": True,
     }
 
 

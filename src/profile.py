@@ -1,69 +1,79 @@
-"""the candidate's candidate profile — single source of truth for all scoring decisions."""
+"""Candidate profile — loaded from an uploaded CV, single source of truth for scoring.
 
-CANDIDATE_NAME = "the candidate"
-CANDIDATE_LOCATION = "Belgium, Belgium (West Flanders)"
+The active candidate is whoever's CV was last uploaded. It is stored as JSON at
+``config/profile.json`` (written by ``src.cv_extract``). Until a CV is uploaded the
+profile is empty and the scan matches nothing candidate-specific.
 
-TARGET_TITLES: frozenset[str] = frozenset({
-    "marketing manager",
-    "brand manager",
-    "sponsorship manager",
-    "head of marketing",
-    "cmo",
-    "chief marketing officer",
-    "marketing director",
-    "brand director",
-    "communications manager",
-    "marketing communications manager",
-    "director of marketing",
-    "vp marketing",
-    "vp of marketing",
-    "marketing consultant",
-    "go-to-market manager",
-    "regional marketing manager",
-    "brand activation manager",
-    "event manager",
-    "product manager",
-})
+The candidate-specific fields below (titles, skills, languages, identity) are read
+from that JSON. The geographic / junior-filter keyword sets are generic defaults that
+apply to any Belgium-based candidate, so they stay static.
+"""
 
-CORE_SKILLS: frozenset[str] = frozenset({
-    "brand management",
-    "sponsorship",
-    "marketing communication",
-    "atl",
-    "btl",
-    "brand activation",
-    "event management",
-    "people management",
-    "team management",
-    "marketing strategy",
-    "campaign management",
-    "digital marketing",
-    "media planning",
-    "communications",
-    "public relations",
-    "pr",
-    "channel marketing",
-    "b2b",
-    "b2c",
-    "sales activation",
-    "retail strategy",
-})
+import json
+from pathlib import Path
 
-# Languages the candidate speaks — used to detect whether she qualifies
-LANGUAGES: frozenset[str] = frozenset({
-    "dutch", "nl", "nederlands",
-    "french", "fr", "français", "francais",
-    "english", "en", "anglais",
-    "german", "de", "deutsch", "allemand",
-})
+ACTIVE_PROFILE_PATH = Path("config/profile.json")
 
-# Dutch or French are native — flag roles that specifically need either
-PREFERRED_LANGUAGES: frozenset[str] = frozenset({
-    "dutch", "nl", "nederlands",
-    "french", "fr", "français", "francais",
-})
+# Empty/neutral profile used until a CV has been uploaded.
+EMPTY_PROFILE: dict = {
+    "name": "",
+    "location": "",
+    "email": "",
+    "phone": "",
+    "target_titles": [],
+    "core_skills": [],
+    "languages": [],
+    "preferred_languages": [],
+}
 
-# Any listing containing these words gets a heavy penalty
+
+def load_profile() -> dict:
+    """Return the active candidate profile (from the uploaded CV), or an empty profile."""
+    if ACTIVE_PROFILE_PATH.exists():
+        try:
+            with open(ACTIVE_PROFILE_PATH, encoding="utf-8") as f:
+                data = json.load(f)
+            # Fill any missing keys so callers can rely on the full shape.
+            return {**EMPTY_PROFILE, **data}
+        except (json.JSONDecodeError, OSError):
+            return dict(EMPTY_PROFILE)
+    return dict(EMPTY_PROFILE)
+
+
+def has_profile() -> bool:
+    """True once a CV has been uploaded and a non-empty profile exists."""
+    p = load_profile()
+    return bool(p.get("name") or p.get("target_titles") or p.get("core_skills"))
+
+
+# ---------------------------------------------------------------------------
+# Module-level names derived from the active profile.
+#
+# These are read once at import. The web scan runs in a *fresh subprocess*
+# (api.py spawns `python main.py run`), so each scan re-imports this module and
+# picks up the latest uploaded profile automatically. The long-running API
+# server re-reads via load_profile() per request instead of these constants.
+# ---------------------------------------------------------------------------
+
+_active = load_profile()
+
+CANDIDATE_NAME: str = _active["name"]
+CANDIDATE_LOCATION: str = _active["location"]
+CANDIDATE_EMAIL: str = _active["email"]
+CANDIDATE_PHONE: str = _active["phone"]
+
+TARGET_TITLES: frozenset[str] = frozenset(t.lower() for t in _active["target_titles"])
+CORE_SKILLS: frozenset[str] = frozenset(s.lower() for s in _active["core_skills"])
+LANGUAGES: frozenset[str] = frozenset(la.lower() for la in _active["languages"])
+PREFERRED_LANGUAGES: frozenset[str] = frozenset(
+    la.lower() for la in _active["preferred_languages"]
+)
+
+# ---------------------------------------------------------------------------
+# Generic, candidate-independent keyword sets (Belgian job market).
+# ---------------------------------------------------------------------------
+
+# Any listing containing these words gets a heavy penalty (junior/entry-level).
 EXCLUDE_KEYWORDS: frozenset[str] = frozenset({
     "junior",
     "entry level",
