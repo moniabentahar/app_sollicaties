@@ -1,4 +1,4 @@
-"""Scoring engine — ranks each JobListing against the candidate's candidate profile."""
+"""Scoring engine — ranks each JobListing against the candidate's profile."""
 
 from src.models import JobListing, ScoredListing
 from src.profile import (

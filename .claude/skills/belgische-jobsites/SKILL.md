@@ -1,7 +1,7 @@
 ---
 name: belgische-jobsites
 description: |
-  Volledige, gecureerde lijst van Belgische job-websites voor the candidate's
+  Volledige, gecureerde lijst van Belgische job-websites voor het
   sollicitatieproces. Georganiseerd per categorie en prioriteit.
   ALTIJD EERST DEZE SKILL RAADPLEGEN bij het zoeken naar jobs.
   Geen Nederlandse websites — uitsluitend Belgische focus.
@@ -48,7 +48,7 @@ Fractional CMO, Business Development, Partnerships.
 
 ## 3. Interim Management & Freelance Opdrachten
 
-Extra aandacht — zeer relevant voor the candidate's ervaring.
+Extra aandacht — zeer relevant voor ervaren kandidaten.
 
 | Platform             | URL                                        | Scraper key          |
 |----------------------|--------------------------------------------|----------------------|
@@ -63,7 +63,7 @@ Extra aandacht — zeer relevant voor the candidate's ervaring.
 
 ## 4. Marketing, Communicatie & Digitale Profielen
 
-Specifiek relevant voor the candidate's profiel.
+Specifiek relevant voor marketing- en communicatieprofielen.
 
 | Platform           | URL                                    | Scraper key      |
 |--------------------|----------------------------------------|------------------|
@@ -76,7 +76,7 @@ Specifiek relevant voor the candidate's profiel.
 
 ## 5. Sport, Sponsoring, Events & Entertainment
 
-Sterk profiel van the candidate — zeker monitoren.
+Sterke categorie — zeker monitoren.
 
 | Platform                  | URL                                        | Scraper key          |
 |---------------------------|--------------------------------------------|----------------------|

@@ -30,7 +30,7 @@ export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
       { title: "Sollicitaties2026 — Job Scan Dashboard" },
-      { name: "description", content: "Job scan dashboard voor the candidate — België 2026." },
+      { name: "description", content: "Job scan dashboard — België 2026." },
     ],
   }),
   component: App,
