@@ -63,6 +63,13 @@ function withTier(items: Record<string, unknown>[]): Listing[] {
 
 const DEMO_LISTINGS = withTier(demoData.listings as Record<string, unknown>[]);
 
+/** First letters of the first two words of a name, e.g. "Bruno Vercruysse" → "BV". */
+function initialsOf(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  return (parts[0][0] + (parts[1]?.[0] ?? "")).toUpperCase();
+}
+
 function App() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [listings, setListings] = useState<Listing[]>(DEMO_LISTINGS);
@@ -346,9 +353,23 @@ function App() {
             <span className="rounded-full border border-border bg-muted px-2 py-0.5 text-[11px] font-semibold tabular-nums text-muted-foreground">
               v{APP_VERSION}
             </span>
-            {profile?.name && (
+            {profile?.name ? (
+              <span className="hidden items-center gap-2 sm:flex">
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-foreground text-[10px] font-bold text-background">
+                  {initialsOf(profile.name)}
+                </span>
+                <span className="leading-tight">
+                  <span className="block text-xs font-bold text-foreground">{profile.name}</span>
+                  {profile.location && (
+                    <span className="block text-[10px] uppercase tracking-wide text-muted-foreground">
+                      {profile.location}
+                    </span>
+                  )}
+                </span>
+              </span>
+            ) : (
               <span className="hidden text-xs text-muted-foreground sm:inline">
-                voor {profile.name}
+                Upload een CV om te starten
               </span>
             )}
           </div>
