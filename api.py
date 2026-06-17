@@ -74,6 +74,9 @@ APPLIED_DB = Path("docs/applied_jobs.json")
 # When set, /api/scan/run requires the matching X-Scan-Token header.
 SCAN_TOKEN = os.getenv("SCAN_TOKEN", "").strip()
 
+# Hard cap on a single scan run so a hanging site can't block scans forever.
+SCAN_TIMEOUT_SECONDS = int(os.getenv("SCAN_TIMEOUT_SECONDS", "600"))
+
 _scan_running = False
 
 
@@ -364,26 +367,28 @@ async def trigger_scan(
 async def _run_scan(site: str | None, min_score: int) -> None:
     global _scan_running
     _scan_running = True
+    proc = None
     try:
         import sys
-        args = [sys.executable, "main.py", "run", "--min-score", str(min_score), "--browser"]
+        args = [sys.executable, "main.py", "run", "--min-score", str(min_score),
+                "--browser", "--verbose"]
         if site:
             args += ["--site", site]
         env = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"}
-        proc = await asyncio.create_subprocess_exec(
-            *args,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            env=env,
-        )
-        out, err = await proc.communicate()
-        # Surface the scan subprocess result in the server log — otherwise a
-        # crashed scrape fails silently and the dashboard just shows old data.
-        print(f"[scan] exit={proc.returncode}", flush=True)
-        if out:
-            print("[scan][stdout]\n" + out.decode("utf-8", "replace")[-4000:], flush=True)
-        if err:
-            print("[scan][stderr]\n" + err.decode("utf-8", "replace")[-4000:], flush=True)
+        # Inherit stdout/stderr so the scan's per-site progress streams live into
+        # the Space logs (we can see exactly where it is / where it hangs).
+        proc = await asyncio.create_subprocess_exec(*args, env=env)
+        try:
+            rc = await asyncio.wait_for(proc.wait(), timeout=SCAN_TIMEOUT_SECONDS)
+            print(f"[scan] finished exit={rc}", flush=True)
+        except asyncio.TimeoutError:
+            # One hanging site must not block scans forever — kill and move on.
+            print(f"[scan] TIMEOUT after {SCAN_TIMEOUT_SECONDS}s — killing scan", flush=True)
+            try:
+                proc.kill()
+            except ProcessLookupError:
+                pass
+            await proc.wait()
     finally:
         _scan_running = False
 
