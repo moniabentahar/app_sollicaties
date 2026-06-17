@@ -17,9 +17,11 @@ WORKDIR /app
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Make sure the browser Scrapling drives is installed + world-readable.
-RUN python -m scrapling install || true \
-    && chmod -R a+rX /ms-playwright || true
+# Install the stealth browser Scrapling drives. Use the `scrapling` console
+# script — `python -m scrapling` is NOT valid and fails silently. No `|| true`:
+# a failed browser install must break the build, not surface as a broken scan.
+RUN scrapling install
+RUN chmod -R a+rX /ms-playwright || true
 
 # Application code (secrets are excluded via .dockerignore).
 COPY . ./

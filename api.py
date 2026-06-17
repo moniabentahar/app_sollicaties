@@ -376,7 +376,14 @@ async def _run_scan(site: str | None, min_score: int) -> None:
             stderr=asyncio.subprocess.PIPE,
             env=env,
         )
-        await proc.communicate()
+        out, err = await proc.communicate()
+        # Surface the scan subprocess result in the server log — otherwise a
+        # crashed scrape fails silently and the dashboard just shows old data.
+        print(f"[scan] exit={proc.returncode}", flush=True)
+        if out:
+            print("[scan][stdout]\n" + out.decode("utf-8", "replace")[-4000:], flush=True)
+        if err:
+            print("[scan][stderr]\n" + err.decode("utf-8", "replace")[-4000:], flush=True)
     finally:
         _scan_running = False
 
