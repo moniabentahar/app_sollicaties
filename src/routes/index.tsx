@@ -350,9 +350,6 @@ function App() {
             <h1 className="font-display text-xl font-bold tracking-tight">
               Sollicitaties<span className="text-accent">2026</span>
             </h1>
-            <span className="rounded-full border border-border bg-muted px-2 py-0.5 text-[11px] font-semibold tabular-nums text-muted-foreground">
-              v{APP_VERSION}
-            </span>
             {profile?.name ? (
               <span className="hidden items-center gap-2 sm:flex">
                 <span className="flex h-7 w-7 items-center justify-center rounded-full bg-foreground text-[10px] font-bold text-background">
@@ -363,6 +360,11 @@ function App() {
                   {profile.location && (
                     <span className="block text-[10px] uppercase tracking-wide text-muted-foreground">
                       {profile.location}
+                    </span>
+                  )}
+                  {profile.languages && profile.languages.length > 0 && (
+                    <span className="block text-[10px] uppercase tracking-wide text-muted-foreground">
+                      {profile.languages.join(" · ")}
                     </span>
                   )}
                 </span>
@@ -393,6 +395,9 @@ function App() {
                 ))}
               </select>
             )}
+            <span className="rounded-md border border-border bg-muted px-2.5 py-1 text-[11px] font-bold tabular-nums text-foreground">
+              Sollicitaties2026 V{APP_VERSION}
+            </span>
           </div>
         </div>
       </header>

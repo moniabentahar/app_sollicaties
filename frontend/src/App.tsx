@@ -292,6 +292,11 @@ export default function App() {
                       {profile.location}
                     </span>
                   )}
+                  {profile.languages && profile.languages.length > 0 && (
+                    <span className="block text-[10px] uppercase tracking-wide text-muted-foreground">
+                      {profile.languages.join(" · ")}
+                    </span>
+                  )}
                 </span>
               </span>
             ) : (
@@ -320,6 +325,9 @@ export default function App() {
                 ))}
               </select>
             )}
+            <span className="rounded-md border border-border bg-muted px-2.5 py-1 text-[11px] font-bold tabular-nums text-foreground">
+              Sollicitaties2026 V1.2
+            </span>
           </div>
         </div>
       </header>
