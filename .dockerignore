@@ -3,7 +3,9 @@
 .github
 node_modules
 frontend/node_modules
-frontend/dist
+# frontend/dist is intentionally shipped: api.py serves the built SPA from it
+# and mounts /assets from dist/assets. Excluding it makes the Space fall back to
+# the raw dev index.html (which references /src/main.tsx and 404s).
 frontend/.vite
 dist
 .vite
