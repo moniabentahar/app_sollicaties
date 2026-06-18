@@ -255,8 +255,7 @@ _KEYWORD_SITES: dict[str, tuple[str, str]] = {
     "hays":        ("q",    "https://www.hays.be/en/job-search?query={kw}&location=belgium"),
     "adecco":      ("q",    "https://www.adecco.be/nl-be/vacatures/resultaten?k={kw}"),
     "randstad":    ("q",    "https://www.randstad.be/werknemers/jobs/?q={kw}"),
-    "linkedin":    ("q",    "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/"
-                            "search?keywords={kw}&location=Belgium&start=0"),
+    # LinkedIn blocks datacenter IPs — skipped until a residential proxy is available.
 }
 
 
@@ -272,15 +271,13 @@ def _profile_search_titles(limit: int = _TITLES_PER_SITE) -> list[str]:
 
 
 def _refresh_search_urls() -> None:
-    """Rewrite keyword-site URLs from the active profile and register LinkedIn."""
+    """Rewrite keyword-site URLs from the active profile."""
     titles = _profile_search_titles()
     for site, (kind, tmpl) in _KEYWORD_SITES.items():
         SITE_URLS[site] = [
             tmpl.format(slug=t.replace(" ", "-")) if kind == "slug" else tmpl.format(kw=quote_plus(t))
             for t in titles
         ]
-    if "linkedin" not in CATEGORY_MUST_HAVE:
-        CATEGORY_MUST_HAVE.append("linkedin")
 
 
 _refresh_search_urls()
@@ -402,7 +399,9 @@ class ScraplingExtractor:
         if not html:
             return []
         context = _html_to_context(html, base_url=url)
+        print(f"    [ctx] html={len(html)}ch context={len(context)}ch url={url[:70]}")
         if len(context) < MIN_CONTEXT_CHARS:
+            print(f"    [skip] context too short ({len(context)}<{MIN_CONTEXT_CHARS}) — blocked/empty page?")
             return []
 
         results = []
