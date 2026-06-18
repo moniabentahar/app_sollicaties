@@ -5,9 +5,6 @@ set -e
 
 source venv/bin/activate 2>/dev/null || source venv/Scripts/activate 2>/dev/null || true
 
-# dynamic = Playwright Chromium (bypasses anti-bot JS rendering on job sites)
-export SOLLICITATIES_FETCHER=dynamic
-
 echo "Starting Sollicitaties2026 backend..."
 echo "Open http://localhost:${PORT:-8010} in your browser."
 echo "(Ctrl+C to stop)"

@@ -111,123 +111,69 @@ def _is_fatal_api_error(exc: Exception) -> bool:
 # ---------------------------------------------------------------------------
 
 # Categorised site groups for selective scanning
-CATEGORY_MUST_HAVE = ["jobat", "indeed", "vdab", "stepstone"]
-CATEGORY_SENIOR = ["michaelpage", "robertwalters", "hudson", "hays"]
-CATEGORY_INTERIM = ["mindsandmore", "roberthalf", "randstad", "adecco"]
-CATEGORY_MARKETING = ["bloovi", "brightplus"]
-CATEGORY_SPORT = ["sportcareers", "golazo"]
-CATEGORY_OVERHEID = ["werkenvoor", "vlaamseoverheid", "stadgent"]
+CATEGORY_MUST_HAVE = ["michaelpage", "roberthalf", "hays"]
+CATEGORY_SENIOR = ["robertwalters", "hudson"]
+CATEGORY_INTERIM = ["mindsandmore"]
+CATEGORY_OVERHEID = ["werkenvoor", "stadgent"]
 CATEGORY_BEDRIJVEN = ["belfius", "telenet", "proximus", "colruyt", "kbc"]
 
 ALL_CATEGORIES: dict[str, list[str]] = {
     "must_have": CATEGORY_MUST_HAVE,
     "senior": CATEGORY_SENIOR,
     "interim": CATEGORY_INTERIM,
-    "marketing": CATEGORY_MARKETING,
-    "sport": CATEGORY_SPORT,
     "overheid": CATEGORY_OVERHEID,
     "bedrijven": CATEGORY_BEDRIJVEN,
 }
 
 SITE_URLS: dict[str, list[str]] = {
-    # ── 1. Must-Have Platforms (dagelijks monitoren) ──────────────────────
-    "jobat": [
-        "https://www.jobat.be/nl/jobs/marketing-manager?location=belgie",
-        "https://www.jobat.be/nl/jobs/brand-manager?location=belgie",
-        "https://www.jobat.be/nl/jobs/hoofd-marketing?location=belgie",
-        "https://www.jobat.be/nl/jobs/marketing-director?location=belgie",
-        "https://www.jobat.be/nl/jobs/sponsorship-manager?location=belgie",
+    # ── 1. Must-Have: Headhunters (keyword-driven, rebuilt from profile) ─
+    # Placeholders — overwritten at startup by _refresh_search_urls()
+    "michaelpage": [
+        "https://www.michaelpage.be/jobs/operations-manager",
+        "https://www.michaelpage.be/jobs/plant-manager",
+        "https://www.michaelpage.be/jobs/general-manager",
     ],
-    "indeed": [
-        "https://be.indeed.com/jobs?q=marketing+manager&l=Belgium",
-        "https://be.indeed.com/jobs?q=brand+manager&l=Belgium",
-        "https://be.indeed.com/jobs?q=head+of+marketing&l=Belgium",
-        "https://be.indeed.com/jobs?q=sponsorship+manager&l=Belgium",
-        "https://be.indeed.com/jobs?q=marketing+director&l=Belgium",
+    "roberthalf": [
+        "https://www.roberthalf.com/be/en/jobs?query=operations+manager",
     ],
-    "vdab": [
-        "https://www.vdab.be/jobs?q=marketing+manager&regio=_belgie",
-        "https://www.vdab.be/jobs?q=brand+manager&regio=_belgie",
-        "https://www.vdab.be/jobs?q=marketing+director&regio=_belgie",
-        "https://www.vdab.be/jobs?q=hoofd+marketing&regio=_belgie",
-    ],
-    "stepstone": [
-        "https://www.stepstone.be/nl/vacature-zoeken/marketing-manager/",
-        "https://www.stepstone.be/nl/vacature-zoeken/brand-manager/",
-        "https://www.stepstone.be/nl/vacature-zoeken/hoofd-marketing/",
-        "https://www.stepstone.be/nl/vacature-zoeken/marketing-director/",
+    "hays": [
+        "https://www.hays.be/en/job-search?query=operations+manager&location=belgium",
     ],
 
-    # ── 2. Senior, Management & Directiefuncties ────────────────────────
-    "michaelpage": [
-        "https://www.michaelpage.be/jobs/marketing-manager",
-        "https://www.michaelpage.be/jobs/marketing-director",
-        "https://www.michaelpage.be/jobs/head-of-marketing",
-    ],
+    # ── 2. Senior & Executive Search ────────────────────────────────────
     "robertwalters": [
-        "https://www.robertwalters.be/nl/expertise/sales-and-marketing/marketing-communicatie-jobs.html",
+        "https://www.robertwalters.be/nl/expertise/supply-chain-operations/supply-chain-jobs.html",
+        "https://www.robertwalters.be/nl/expertise/engineering-manufacturing/engineering-jobs.html",
     ],
     "hudson": [
         "https://www.hudsonsolutions.com/nl-be",
     ],
 
-    # ── 3. Interim Management & Freelance Opdrachten ────────────────────
+    # ── 3. Interim Management ───────────────────────────────────────────
     "mindsandmore": [
         "https://mindsandmore.biz/nl/bij-ons-werken/",
     ],
-    "roberthalf": [
-        "https://www.roberthalf.com/be/en/jobs?query=marketing+manager",
-    ],
-    "randstad": [
-        "https://www.randstad.be/werknemers/jobs/?q=marketing",
-        "https://www.randstad.be/werknemers/jobs/",
-    ],
-    "adecco": [
-        "https://www.adecco.be/nl-be/vacatures/resultaten?k=marketing+manager",
-    ],
-    "hays": [
-        "https://www.hays.be/en/job-search?query=marketing+manager&location=belgium",
-    ],
 
-    # ── 4. Marketing, Communicatie & Digitale Profielen ──────────────────
-    "bloovi": [
-        "https://werkenbij.bloovi.be/nl/vacatures",
-    ],
-    "brightplus": [
-        "https://www.brightplus.be/nl/vind-een-job/jobs-in-marketing-en-communicatie/",
-    ],
-
-    # ── 5. Sport, Sponsoring, Events & Entertainment ────────────────────
-    "sportcareers": [
-        "https://www.sportcareers.be/nl/vacatures",
-    ],
-    "golazo": [
-        "https://www.golazo.com/jobs",
-    ],
-
-    # ── 6. Overheid & Semi-Overheid ─────────────────────────────────────
+    # ── 4. Overheid & Semi-Overheid ─────────────────────────────────────
     "werkenvoor": [
         "https://werkenvoor.be/nl/jobs",
     ],
-    "vlaamseoverheid": [
-        "https://www.vlaanderen.be/vacatures-bij-de-vlaamse-overheid",
-    ],
     "stadgent": [
-        "https://jobs.stad.gent",
+        "https://jobs.gent.be/",
     ],
 
-    # ── 8. Bedrijven Rechtstreeks ───────────────────────────────────────
+    # ── 5. Bedrijven Rechtstreeks ───────────────────────────────────────
     "belfius": [
         "https://jobs.belfius.be",
     ],
     "telenet": [
-        "https://jobs.telenet.be",
+        "https://www2.telenet.be/corporate/nl/careers.html",
     ],
     "proximus": [
-        "https://jobs.proximus.com",
+        "https://jobs.proximus.com/be/en",
     ],
     "colruyt": [
-        "https://jobs.colruytgroup.com",
+        "https://jobs.colruytgroup.com/nl",
     ],
     "kbc": [
         "https://www.kbc.com/en/working-at-kbc/joining-us.html",
@@ -245,17 +191,18 @@ SITE_URLS: dict[str, list[str]] = {
 # ---------------------------------------------------------------------------
 
 # site -> (kind, url template). kind "q" = URL-encoded query, "slug" = hyphenated.
+# Only sites confirmed to return job-listing HTML via plain HTTP GET are listed here.
 _KEYWORD_SITES: dict[str, tuple[str, str]] = {
-    "indeed":      ("q",    "https://be.indeed.com/jobs?q={kw}&l=Belgium"),
-    "vdab":        ("q",    "https://www.vdab.be/jobs?q={kw}&regio=_belgie"),
-    "jobat":       ("slug", "https://www.jobat.be/nl/jobs/{slug}?location=belgie"),
-    "stepstone":   ("slug", "https://www.stepstone.be/nl/vacature-zoeken/{slug}/"),
     "michaelpage": ("slug", "https://www.michaelpage.be/jobs/{slug}"),
     "roberthalf":  ("q",    "https://www.roberthalf.com/be/en/jobs?query={kw}"),
     "hays":        ("q",    "https://www.hays.be/en/job-search?query={kw}&location=belgium"),
-    "adecco":      ("q",    "https://www.adecco.be/nl-be/vacatures/resultaten?k={kw}"),
-    "randstad":    ("q",    "https://www.randstad.be/werknemers/jobs/?q={kw}"),
-    # LinkedIn blocks datacenter IPs — skipped until a residential proxy is available.
+    # indeed: 403 on all IPs (datacenter + residential blocked)
+    # vdab: JS-only SPA — content not in initial HTML
+    # jobat: uses POST form for keyword search; GET slug URLs return 0 results
+    # stepstone: ERR_HTTP2 / connection reset (blocked)
+    # adecco: .be domain redirects all search queries to .com homepage
+    # randstad: JS-rendered listings — context shows navigation only
+    # linkedin: blocks datacenter IPs
 }
 
 
