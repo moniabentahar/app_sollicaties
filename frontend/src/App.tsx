@@ -326,7 +326,7 @@ export default function App() {
               </select>
             )}
             <span className="rounded-md border border-border bg-muted px-2.5 py-1 text-[11px] font-bold tabular-nums text-foreground">
-              Sollicitaties2026 V1.3
+              Sollicitaties2026 V1.4
             </span>
           </div>
         </div>
