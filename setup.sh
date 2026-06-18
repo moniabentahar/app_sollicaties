@@ -5,9 +5,12 @@ set -e
 
 echo "=== Sollicitaties2026 — first-time setup ==="
 
+# Use python3 if python is not available (Linux servers often omit the alias)
+PYTHON=$(command -v python || command -v python3)
+
 # Create venv if it doesn't exist yet
 if [ ! -d "venv" ]; then
-  python -m venv venv
+  $PYTHON -m venv venv
   echo "[1/3] Virtual environment created."
 else
   echo "[1/3] Virtual environment already exists — skipping."
@@ -24,8 +27,16 @@ echo "      Done."
 
 # Playwright / Scrapling browser
 echo "[3/3] Installing Scrapling browser (Playwright Chromium)..."
-scrapling install
-echo "      Done."
+# scrapling install also runs 'playwright install-deps' which needs sudo on Linux.
+# On Windows/Mac it works fine. On Linux servers without sudo, fall back to
+# 'playwright install chromium' which only downloads the browser binary.
+if scrapling install 2>/dev/null; then
+  echo "      Done."
+else
+  echo "      (sudo unavailable — installing browser binary only)"
+  playwright install chromium
+  echo "      Done."
+fi
 
 # Prompt for API key if config/.env doesn't exist yet
 mkdir -p config
