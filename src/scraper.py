@@ -10,9 +10,11 @@ hosted scrape+LLM-extract API required paid credits (HTTP 402 when exhausted).
 import os
 import time
 from typing import Optional
+from urllib.parse import quote_plus
 
 import lxml.html
 
+from src import profile as _profile
 from src.models import JobListing
 
 # Cheap, fast model for structured extraction; overridable via env.
@@ -103,7 +105,9 @@ def _is_fatal_api_error(exc: Exception) -> bool:
 
 # ---------------------------------------------------------------------------
 # Search URLs per site — Belgian job market only (see .claude/skills/belgische-jobsites/SKILL.md)
-# LinkedIn blocks all scrapers (403); use manually via browser.
+# The keyword-searchable sites below are rewritten from the uploaded CV's target
+# titles at import time (see _refresh_search_urls), and LinkedIn is added via its
+# guest jobs endpoint. The static URLs here are just placeholders/defaults.
 # ---------------------------------------------------------------------------
 
 # Categorised site groups for selective scanning
@@ -229,6 +233,57 @@ SITE_URLS: dict[str, list[str]] = {
         "https://www.kbc.com/en/working-at-kbc/joining-us.html",
     ],
 }
+
+
+# ---------------------------------------------------------------------------
+# Profile-driven search URLs.
+# The sites below can be searched by keyword/title. We rebuild their URLs from
+# the *uploaded CV's* target titles (src.profile) so the scan looks for the
+# candidate's actual roles instead of the old hard-coded marketing terms.
+# LinkedIn is added here too, via its guest jobs endpoint (HTML job cards, no
+# login). LinkedIn often blocks datacenter IPs (403/429) — best effort.
+# ---------------------------------------------------------------------------
+
+# site -> (kind, url template). kind "q" = URL-encoded query, "slug" = hyphenated.
+_KEYWORD_SITES: dict[str, tuple[str, str]] = {
+    "indeed":      ("q",    "https://be.indeed.com/jobs?q={kw}&l=Belgium"),
+    "vdab":        ("q",    "https://www.vdab.be/jobs?q={kw}&regio=_belgie"),
+    "jobat":       ("slug", "https://www.jobat.be/nl/jobs/{slug}?location=belgie"),
+    "stepstone":   ("slug", "https://www.stepstone.be/nl/vacature-zoeken/{slug}/"),
+    "michaelpage": ("slug", "https://www.michaelpage.be/jobs/{slug}"),
+    "roberthalf":  ("q",    "https://www.roberthalf.com/be/en/jobs?query={kw}"),
+    "hays":        ("q",    "https://www.hays.be/en/job-search?query={kw}&location=belgium"),
+    "adecco":      ("q",    "https://www.adecco.be/nl-be/vacatures/resultaten?k={kw}"),
+    "randstad":    ("q",    "https://www.randstad.be/werknemers/jobs/?q={kw}"),
+    "linkedin":    ("q",    "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/"
+                            "search?keywords={kw}&location=Belgium&start=0"),
+}
+
+
+# How many of the candidate's titles to search per site. Lower = faster scan
+# (fewer URLs); tune live via the Space env var without a rebuild.
+_TITLES_PER_SITE = int(os.getenv("SOLLICITATIES_TITLES_PER_SITE", "3"))
+
+
+def _profile_search_titles(limit: int = _TITLES_PER_SITE) -> list[str]:
+    """Top target titles from the active (uploaded-CV) profile."""
+    titles = sorted(_profile.TARGET_TITLES)
+    return titles[:limit] if titles else ["manager"]
+
+
+def _refresh_search_urls() -> None:
+    """Rewrite keyword-site URLs from the active profile and register LinkedIn."""
+    titles = _profile_search_titles()
+    for site, (kind, tmpl) in _KEYWORD_SITES.items():
+        SITE_URLS[site] = [
+            tmpl.format(slug=t.replace(" ", "-")) if kind == "slug" else tmpl.format(kw=quote_plus(t))
+            for t in titles
+        ]
+    if "linkedin" not in CATEGORY_MUST_HAVE:
+        CATEGORY_MUST_HAVE.append("linkedin")
+
+
+_refresh_search_urls()
 
 
 def _html_to_context(html: str, base_url: str) -> str:
