@@ -1,6 +1,8 @@
 // API types + fetch helpers for the Sollicitaties2026 dashboard.
 // Mirrors the FastAPI contract in api.py.
 
+const API_BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, "") ?? ""
+
 export type Tier = "strong" | "consider" | "low"
 
 export interface Profile {
@@ -54,7 +56,7 @@ export interface ScanResult {
 }
 
 async function getJson<T>(url: string): Promise<T> {
-  const res = await fetch(url)
+  const res = await fetch(API_BASE + url)
   if (!res.ok) throw new Error(`${res.status} ${res.statusText} — ${url}`)
   return res.json() as Promise<T>
 }
@@ -69,7 +71,7 @@ export const api = {
   async uploadCv(file: File): Promise<Profile> {
     const form = new FormData()
     form.append("file", file)
-    const res = await fetch("/api/profile/upload", { method: "POST", body: form })
+    const res = await fetch(API_BASE + "/api/profile/upload", { method: "POST", body: form })
     if (!res.ok) {
       let detail = "could not read the CV"
       try {
@@ -83,7 +85,7 @@ export const api = {
   },
 
   async runScan(): Promise<"started" | "already-running"> {
-    const res = await fetch("/api/scan/run", { method: "POST" })
+    const res = await fetch(API_BASE + "/api/scan/run", { method: "POST" })
     if (res.status === 409) return "already-running"
     if (!res.ok) throw new Error("scan failed to start")
     return "started"
@@ -95,7 +97,7 @@ export const api = {
 
   async saveApplication(job: Listing, letter?: string): Promise<{ ok: boolean; job_id: string }> {
     const body = letter ? { ...job, cover_letter: letter } : job
-    const res = await fetch("/api/applications", {
+    const res = await fetch(API_BASE + "/api/applications", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -105,12 +107,12 @@ export const api = {
   },
 
   async deleteApplication(jobId: string): Promise<void> {
-    const res = await fetch(`/api/applications/${jobId}`, { method: "DELETE" })
+    const res = await fetch(`${API_BASE}/api/applications/${jobId}`, { method: "DELETE" })
     if (!res.ok) throw new Error("could not delete application")
   },
 
   async generateLetter(job: Listing): Promise<string> {
-    const res = await fetch("/api/generate-letter", {
+    const res = await fetch(API_BASE + "/api/generate-letter", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(job),
