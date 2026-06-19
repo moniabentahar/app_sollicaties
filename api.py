@@ -371,7 +371,7 @@ async def _run_scan(site: str | None, min_score: int) -> None:
     try:
         import sys
         args = [sys.executable, "main.py", "run", "--min-score", str(min_score),
-                "--browser", "--verbose"]
+                "--verbose"]
         if site:
             args += ["--site", site]
         env = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"}
