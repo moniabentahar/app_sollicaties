@@ -314,15 +314,19 @@ function App() {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return listings.filter((l) => {
-      if (filterTier !== "all" && l.tier !== filterTier) return false;
-      if (filterSite !== "all" && l.source_site !== filterSite) return false;
-      if (q) {
-        const hay = `${l.title} ${l.company} ${l.location ?? ""}`.toLowerCase();
-        if (!hay.includes(q)) return false;
-      }
-      return true;
-    });
+    return listings
+      .filter((l) => {
+        if (filterTier !== "all" && l.tier !== filterTier) return false;
+        if (filterSite !== "all" && l.source_site !== filterSite) return false;
+        if (q) {
+          const hay = `${l.title} ${l.company} ${l.location ?? ""}`.toLowerCase();
+          if (!hay.includes(q)) return false;
+        }
+        return true;
+      })
+      // Best matches first, always — so the strong matches stay on top
+      // instead of "disappearing" when live scan results replace the demo.
+      .sort((a, b) => (Number(b.score) || 0) - (Number(a.score) || 0));
   }, [listings, query, filterTier, filterSite]);
 
   return (
