@@ -39,7 +39,14 @@ _DOMAIN_TITLE_TERMS = frozenset({
     "marketing", "brand", "merk", "communicat", "campaign", "campagne",
     "content", "social media", "seo", "sea", "growth marketing",
     "sponsor", "sponsoring", "partnership", "partnerships", "partner manager",
+    # PR / public relations
+    "public relations", "pr manager", "pr officer", "pr & ", "persrelaties",
+    "woordvoerder", "press officer", "press relations",
 })
+
+# Non-marketing roles are capped at this score (below the consider threshold of
+# 4) so they always rank — and display — as low, on any client.
+_NON_DOMAIN_SCORE_CAP = 3
 
 
 def _norm(text: str) -> str:
@@ -101,8 +108,16 @@ def score_listing(listing: JobListing) -> ScoredListing:
         score += capped * _SKILL_EACH
         flags.append(f"[+] {capped} skill(s) matched")
 
+    # --- Domain cap --- a non-marketing role (payroll, office manager, HR) is
+    # irrelevant to this candidate, so it must never read as a match. We cap its
+    # *score* below the consider threshold too — not just its tier — so even a
+    # score-only client (an older frontend that recomputes the badge from score)
+    # still shows it as low without any redeploy.
+    if not is_domain:
+        score = min(score, _NON_DOMAIN_SCORE_CAP)
+
     # --- Tier --- only marketing/sponsorship/partnership roles can be strong or
-    # consider; everything else is capped at low no matter how high the score.
+    # consider; everything else is low no matter how high the raw score was.
     if is_domain and score >= _TIER_THRESHOLDS[TIER_STRONG]:
         tier = TIER_STRONG
     elif is_domain and score >= _TIER_THRESHOLDS[TIER_CONSIDER]:
