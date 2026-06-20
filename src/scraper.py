@@ -242,14 +242,25 @@ def _title_priority(title: str) -> int:
     return len(_PRIORITY_TERMS)
 
 
+# Always searched, even if not in the top-N profile titles — the candidate
+# explicitly wants sponsorship and partnership roles covered.
+_ALWAYS_INCLUDE = ("sponsorship manager", "partnership manager")
+
+
 def _profile_search_titles(limit: int = _TITLES_PER_SITE) -> list[str]:
     """Most relevant target titles from the active (uploaded-CV) profile.
 
     Sorted by marketing relevance (not alphabetically) so the broad, high-yield
-    titles like 'marketing manager' / 'marketing director' are always searched.
+    titles like 'marketing manager' / 'marketing director' are always searched,
+    plus guaranteed sponsorship/partnership coverage.
     """
     titles = sorted(_profile.TARGET_TITLES, key=lambda t: (_title_priority(t), t))
-    return titles[:limit] if titles else ["marketing manager"]
+    chosen = titles[:limit] if titles else ["marketing manager"]
+    for extra in _ALWAYS_INCLUDE:
+        keyword = extra.split()[0]  # "sponsorship" / "partnership"
+        if not any(keyword in t.lower() for t in chosen):
+            chosen.append(extra)
+    return chosen
 
 
 def _refresh_search_urls() -> None:
