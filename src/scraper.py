@@ -395,29 +395,47 @@ def scrape_sites(
     verbose: bool = False,
     use_browser: bool = False,
 ) -> list[JobListing]:
-    """Scrape all (or a subset of) job sites. Returns deduplicated listings.
+    """Scrape all (or a subset of) job sites concurrently. Returns deduplicated listings.
 
-    ``api_key`` is the Anthropic API key used for extraction.
+    Every (site, search-URL) pair is fetched + extracted in parallel via a bounded
+    thread pool, which cuts wall-clock time several-fold versus scraping one by one.
+    Tune the pool with SOLLICITATIES_CONCURRENCY (default 6). ``api_key`` is the
+    Anthropic key used for extraction.
     """
+    import concurrent.futures
+
     client = ScraplingExtractor(api_key, use_browser=use_browser)
     target_sites = sites or list(SITE_URLS.keys())
+
+    # Flatten to (site, url) jobs.
+    jobs: list[tuple[str, str]] = []
+    for site in target_sites:
+        urls = SITE_URLS.get(site)
+        if not urls:
+            print(f"[warn] Unknown site key: '{site}'. Valid: {', '.join(SITE_URLS)}")
+            continue
+        jobs.extend((site, url) for url in urls)
+
+    workers = max(1, int(os.getenv("SOLLICITATIES_CONCURRENCY", "6")))
+    print(f"[scan] {len(jobs)} URL(s) across {len(target_sites)} site(s), concurrency={workers}", flush=True)
+
     all_listings: list[JobListing] = []
     seen: set[str] = set()
+    aborted: Optional[ScanAbort] = None
 
     try:
-        for site in target_sites:
-            urls = SITE_URLS.get(site)
-            if not urls:
-                print(f"[warn] Unknown site key: '{site}'. Valid: {', '.join(SITE_URLS)}")
-                continue
-
-            print(f"\n[{site}] scraping {len(urls)} search URL(s)...")
-            site_count = 0
-
-            for url in urls:
-                if verbose:
-                    print(f"  -> {url}")
-                listings = client.scrape_jobs(url, site)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
+            futures = {pool.submit(client.scrape_jobs, url, site): (site, url) for site, url in jobs}
+            for fut in concurrent.futures.as_completed(futures):
+                site, url = futures[fut]
+                try:
+                    listings = fut.result()
+                except ScanAbort as exc:
+                    aborted = exc
+                    break
+                except Exception as exc:  # one bad URL must not sink the whole scan
+                    print(f"  [warn] {site} task error: {type(exc).__name__}: {str(exc)[:80]}", flush=True)
+                    continue
                 new = 0
                 for listing in listings:
                     key = f"{listing.title.lower()}|||{listing.company.lower()}"
@@ -426,18 +444,17 @@ def scrape_sites(
                         all_listings.append(listing)
                         new += 1
                 if verbose:
-                    print(f"    {len(listings)} found, {new} new (deduped)")
-                site_count += new
-                time.sleep(RATE_LIMIT_DELAY)
-
-            print(f"  [{site}] total unique: {site_count}")
-    except ScanAbort as exc:
-        print(
-            f"\n[FOUT] Scan afgebroken — Anthropic API niet bruikbaar:\n  {exc}\n"
-            "  Voeg tegoed toe op https://console.anthropic.com (Settings -> Billing) "
-            "en probeer opnieuw."
-        )
+                    print(f"  [{site}] {len(listings)} found, {new} new  <- {url[:60]}", flush=True)
     finally:
         client.close()
 
+    if aborted is not None:
+        print(
+            f"\n[FOUT] Scan afgebroken — Anthropic API niet bruikbaar:\n  {aborted}\n"
+            "  Voeg tegoed toe op https://console.anthropic.com (Settings -> Billing) "
+            "en probeer opnieuw.",
+            flush=True,
+        )
+
+    print(f"[scan] klaar: {len(all_listings)} unieke vacatures", flush=True)
     return all_listings
