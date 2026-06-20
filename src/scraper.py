@@ -270,6 +270,19 @@ def _title_priority(title: str) -> int:
 # explicitly wants sponsorship and partnership roles covered.
 _ALWAYS_INCLUDE = ("sponsorship manager", "partnership manager")
 
+# LinkedIn is searched on this broad marketing/communication/sponsoring field
+# (not just the CV's exact titles) so we surface everything interesting around
+# the domain, even when a title isn't a 100% match. Each term is one guest-API
+# query; the domain gate in filters.py then keeps the results on-topic.
+_LINKEDIN_FIELD_TERMS = (
+    "marketing manager", "marketing director", "head of marketing",
+    "brand manager", "product marketing manager", "trade marketing",
+    "communicatie manager", "communications manager", "content manager",
+    "social media manager", "digital marketing", "growth manager",
+    "campaign manager", "event manager", "employer branding",
+    "sponsorship manager", "partnership manager", "pr manager",
+)
+
 
 def _profile_search_titles(limit: int = _TITLES_PER_SITE) -> list[str]:
     """Most relevant target titles from the active (uploaded-CV) profile.
@@ -288,12 +301,14 @@ def _profile_search_titles(limit: int = _TITLES_PER_SITE) -> list[str]:
 
 
 def _refresh_search_urls() -> None:
-    """Rewrite keyword-site URLs from the active profile."""
+    """Rewrite keyword-site URLs. LinkedIn uses the broad marketing/communication
+    field list; the other keyword sites use the active CV's target titles."""
     titles = _profile_search_titles()
     for site, (kind, tmpl) in _KEYWORD_SITES.items():
+        terms = _LINKEDIN_FIELD_TERMS if site == "linkedin" else titles
         SITE_URLS[site] = [
             tmpl.format(slug=t.replace(" ", "-")) if kind == "slug" else tmpl.format(kw=quote_plus(t))
-            for t in titles
+            for t in terms
         ]
 
 

@@ -36,13 +36,26 @@ _TIER_THRESHOLDS = {
 # out of the strong list, and pulls the explicitly-wanted sponsorship/partnership
 # roles in by giving them the title-match bonus.
 _DOMAIN_TITLE_TERMS = frozenset({
+    # Core marketing
     "marketing", "brand", "merk", "communicat", "campaign", "campagne",
-    "content", "social media", "seo", "sea", "growth marketing",
-    "sponsor", "sponsoring", "partnership", "partnerships", "partner manager",
-    # PR / public relations
+    "content", "social media", "seo", "sea", "digital marketing",
+    "growth marketing", "growth manager", "head of growth", "growth lead", "growth hacker",
+    "advertising", "advertentie", "media planner", "media buyer",
+    "activation", "activatie", "crm", "go-to-market", "demand generation",
+    "influencer", "employer brand", "go to market", "product marketing",
+    # Events & sponsoring
+    "event manager", "eventmanager", "event marke", "evenement",
+    "sponsor", "sponsoring", "sponsorship",
+    # Partnerships (also covered by _is_partner_role)
+    "partnership", "partnerships", "partner manager",
+    # PR / public relations / community
     "public relations", "pr manager", "pr officer", "pr & ", "persrelaties",
-    "woordvoerder", "press officer", "press relations",
+    "woordvoerder", "press officer", "press relations", "community manager",
 })
+
+# Titles that match a broad domain term but are not actually marketing/comms work
+# (e.g. "content moderator" = trust & safety, not content marketing).
+_DOMAIN_EXCLUDE_TERMS = frozenset({"moderator", "moderation"})
 
 # Non-marketing roles are capped at this score (below the consider threshold of
 # 4) so they always rank — and display — as low, on any client.
@@ -90,7 +103,7 @@ def score_listing(listing: JobListing) -> ScoredListing:
         _has(title_norm, TARGET_TITLES)
         or _has(title_norm, _DOMAIN_TITLE_TERMS)
         or _is_partner_role(title_norm)
-    )
+    ) and not _has(title_norm, _DOMAIN_EXCLUDE_TERMS)
     if is_domain:
         score += _TITLE_MATCH
         flags.append("[+] title match")
