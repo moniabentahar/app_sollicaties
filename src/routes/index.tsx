@@ -151,7 +151,7 @@ function App() {
             api.scans().catch(() => null),
           ]);
           if (latest) {
-            setListings(withTier(latest.listings as Record<string, unknown>[]));
+            setListings(withTier(latest.listings as unknown as Record<string, unknown>[]));
             setCurrentFile(latest.file ?? "");
             setIsPreview(false);
           }
