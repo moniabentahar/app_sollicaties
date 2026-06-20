@@ -53,6 +53,17 @@ def _norm(text: str) -> str:
     return text.lower().strip()
 
 
+def _is_partner_role(title: str) -> bool:
+    """True for partnership/partner/alliance roles the candidate wants — but not
+    'HR business partner', which is a people-ops role, not a partnerships one.
+    Catches every variant (partner manager, partnership(s), partner relationship,
+    channel/strategic partner, alliance) without listing each one."""
+    t = title.lower()
+    if "business partner" in t:
+        return False
+    return "partner" in t or "alliance" in t
+
+
 def _has(haystack: str, needles: frozenset[str]) -> bool:
     return any(needle in haystack for needle in needles)
 
@@ -75,7 +86,11 @@ def score_listing(listing: JobListing) -> ScoredListing:
 
     # --- Title / domain match (marketing, sponsorship, partnership) ---
     title_norm = _norm(listing.title)
-    is_domain = _has(title_norm, TARGET_TITLES) or _has(title_norm, _DOMAIN_TITLE_TERMS)
+    is_domain = (
+        _has(title_norm, TARGET_TITLES)
+        or _has(title_norm, _DOMAIN_TITLE_TERMS)
+        or _is_partner_role(title_norm)
+    )
     if is_domain:
         score += _TITLE_MATCH
         flags.append("[+] title match")

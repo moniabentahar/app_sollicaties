@@ -186,6 +186,22 @@ SITE_URLS: dict[str, list[str]] = {
     "dsmkeukens": [
         "https://www.dsmkeukens.be/vacatures/",
     ],
+
+    # ── 7. Oracle Recruiting Cloud sites (JS careers pages → JSON API) ──
+    # The careers page is a JS SPA (no extractable HTML), but its requisitions
+    # are served as clean JSON. We parse that directly (no LLM) — see
+    # _ORACLE_ORC_SITES and _fetch_oracle_orc.
+    "wyre": [
+        "https://ebza.fa.em2.oraclecloud.com/hcmRestApi/resources/latest/recruitingCEJobRequisitions"
+        "?onlyData=true&expand=requisitionList.secondaryLocations,flexFieldsFacet.values"
+        "&finder=findReqs;siteNumber=CX_3001,limit=200,sortBy=POSTING_DATES_DESC",
+    ],
+}
+
+# Oracle Recruiting Cloud sites: slug -> employer label. Their SITE_URLS entry is
+# the JSON requisitions API; jobs are parsed directly from JSON (no LLM call).
+_ORACLE_ORC_SITES: dict[str, str] = {
+    "wyre": "Wyre (Joint Venture Telenet x Fluvius)",
 }
 
 
@@ -314,6 +330,59 @@ def _html_to_context(html: str, base_url: str) -> str:
     return cleaned[:MAX_CONTEXT_CHARS]
 
 
+def _fetch_oracle_orc(api_url: str, company: str, source_site: str) -> list[JobListing]:
+    """Parse an Oracle Recruiting Cloud requisitions JSON API into listings.
+
+    Oracle career sites render jobs via JavaScript (no extractable HTML), but the
+    underlying ``recruitingCEJobRequisitions`` endpoint returns clean JSON. We read
+    it directly — exact, fast, and free (no LLM call). The job-detail URL is rebuilt
+    from the API host + the ``siteNumber`` embedded in the query.
+    """
+    import json
+    import re
+    import urllib.request
+    from urllib.parse import urlparse
+
+    host = urlparse(api_url).netloc
+    m = re.search(r"siteNumber=([^,&;]+)", api_url)
+    site_number = m.group(1) if m else ""
+    detail_base = f"https://{host}/hcmUI/CandidateExperience/en/sites/{site_number}/job/"
+
+    req = urllib.request.Request(
+        api_url, headers={"Accept": "application/json", "User-Agent": "Mozilla/5.0"}
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except Exception as exc:
+        print(f"  [warn] {source_site} Oracle API error: {type(exc).__name__}: {str(exc)[:80]}")
+        return []
+
+    items = data.get("items") or []
+    reqs = items[0].get("requisitionList", []) if items else []
+    out: list[JobListing] = []
+    for r in reqs:
+        title = (r.get("Title") or "").strip()
+        if not title:
+            continue
+        out.append(
+            JobListing(
+                title=title,
+                company=company,
+                location=(r.get("PrimaryLocation") or "").strip(),
+                source_site=source_site,
+                remote="unknown",
+                experience_level="",
+                languages=[],
+                skills=[],
+                posted_date=(r.get("PostedDate") or "").strip(),
+                apply_url=f"{detail_base}{r.get('Id')}" if r.get("Id") else api_url,
+                description_summary="",
+            )
+        )
+    return out
+
+
 class ScraplingExtractor:
     """Fetch a page with Scrapling, extract job listings with Claude."""
 
@@ -401,6 +470,10 @@ class ScraplingExtractor:
         return []
 
     def scrape_jobs(self, url: str, source_site: str) -> list[JobListing]:
+        # Oracle Recruiting Cloud sites are parsed straight from their JSON API.
+        if source_site in _ORACLE_ORC_SITES:
+            return _fetch_oracle_orc(url, _ORACLE_ORC_SITES[source_site], source_site)
+
         html = self._fetch_html(url, source_site)
         if not html:
             return []
