@@ -116,6 +116,8 @@ CATEGORY_SENIOR = ["robertwalters", "hudson"]
 CATEGORY_INTERIM = ["mindsandmore"]
 CATEGORY_OVERHEID = ["werkenvoor", "stadgent"]
 CATEGORY_BEDRIJVEN = ["belfius", "telenet", "proximus", "colruyt", "kbc"]
+# KMO's met een eigen vacaturepagina in platte HTML (scanbaar via gewone HTTP).
+CATEGORY_KMO = ["dsmkeukens"]
 
 ALL_CATEGORIES: dict[str, list[str]] = {
     "must_have": CATEGORY_MUST_HAVE,
@@ -123,6 +125,7 @@ ALL_CATEGORIES: dict[str, list[str]] = {
     "interim": CATEGORY_INTERIM,
     "overheid": CATEGORY_OVERHEID,
     "bedrijven": CATEGORY_BEDRIJVEN,
+    "kmo": CATEGORY_KMO,
 }
 
 SITE_URLS: dict[str, list[str]] = {
@@ -177,6 +180,11 @@ SITE_URLS: dict[str, list[str]] = {
     ],
     "kbc": [
         "https://www.kbc.com/en/working-at-kbc/joining-us.html",
+    ],
+
+    # ── 6. KMO's Rechtstreeks (eigen vacaturepagina, platte HTML) ───────
+    "dsmkeukens": [
+        "https://www.dsmkeukens.be/vacatures/",
     ],
 }
 

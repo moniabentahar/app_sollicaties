@@ -29,6 +29,18 @@ _TIER_THRESHOLDS = {
     TIER_CONSIDER: 4,
 }
 
+# Marketing / sponsorship / partnership domain. A listing only counts as a real
+# match — and can only be tiered strong/consider — if its TITLE contains one of
+# these (or one of the CV's target titles). This keeps non-marketing Belgian/
+# French roles (payroll "gestionnaire paie", office manager, HR business partner)
+# out of the strong list, and pulls the explicitly-wanted sponsorship/partnership
+# roles in by giving them the title-match bonus.
+_DOMAIN_TITLE_TERMS = frozenset({
+    "marketing", "brand", "merk", "communicat", "campaign", "campagne",
+    "content", "social media", "seo", "sea", "growth marketing",
+    "sponsor", "sponsoring", "partnership", "partnerships", "partner manager",
+})
+
 
 def _norm(text: str) -> str:
     return text.lower().strip()
@@ -54,8 +66,10 @@ def score_listing(listing: JobListing) -> ScoredListing:
         score += _PENALTY_JUNIOR
         flags.append("[!] junior/entry-level")
 
-    # --- Title match ---
-    if _has(_norm(listing.title), TARGET_TITLES):
+    # --- Title / domain match (marketing, sponsorship, partnership) ---
+    title_norm = _norm(listing.title)
+    is_domain = _has(title_norm, TARGET_TITLES) or _has(title_norm, _DOMAIN_TITLE_TERMS)
+    if is_domain:
         score += _TITLE_MATCH
         flags.append("[+] title match")
 
@@ -87,10 +101,11 @@ def score_listing(listing: JobListing) -> ScoredListing:
         score += capped * _SKILL_EACH
         flags.append(f"[+] {capped} skill(s) matched")
 
-    # --- Tier ---
-    if score >= _TIER_THRESHOLDS[TIER_STRONG]:
+    # --- Tier --- only marketing/sponsorship/partnership roles can be strong or
+    # consider; everything else is capped at low no matter how high the score.
+    if is_domain and score >= _TIER_THRESHOLDS[TIER_STRONG]:
         tier = TIER_STRONG
-    elif score >= _TIER_THRESHOLDS[TIER_CONSIDER]:
+    elif is_domain and score >= _TIER_THRESHOLDS[TIER_CONSIDER]:
         tier = TIER_CONSIDER
     else:
         tier = TIER_LOW

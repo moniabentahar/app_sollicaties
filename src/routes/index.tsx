@@ -52,17 +52,23 @@ const REMOTE_LABEL: Record<string, string> = {
   remote: "Thuiswerk",
 };
 
-/** Add tier field to items that come from the static JSON (which lacks it). */
-// Tier thresholds. "strong" = 5 (your target title +3 and Belgium +2) = a job
-// that matches your title in your country. We always recompute from score so the
-// tiers stay consistent and react instantly to this threshold (no re-scan needed).
+/** Ensure every listing has a tier. The live backend already classifies each job
+ * (only real marketing/sponsorship/partnership titles can be strong/consider —
+ * a high score alone is not enough, so payroll/office roles stay low). We trust
+ * that tier. The static demo JSON has no tier, so we derive one from its score. */
 const STRONG_MIN = 5;
 const CONSIDER_MIN = 4;
 function withTier(items: Record<string, unknown>[]): Listing[] {
   return items.map((l) => ({
     ...l,
     tier:
-      Number(l.score) >= STRONG_MIN ? "strong" : Number(l.score) >= CONSIDER_MIN ? "consider" : "low",
+      typeof l.tier === "string" && l.tier
+        ? l.tier
+        : Number(l.score) >= STRONG_MIN
+          ? "strong"
+          : Number(l.score) >= CONSIDER_MIN
+            ? "consider"
+            : "low",
   })) as Listing[];
 }
 
