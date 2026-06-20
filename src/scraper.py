@@ -217,10 +217,39 @@ _SITE_FETCHER_OVERRIDES: dict[str, str] = {
 _TITLES_PER_SITE = int(os.getenv("SOLLICITATIES_TITLES_PER_SITE", "3"))
 
 
+# Broad, high-yield titles searched first. Alphabetical order would push the
+# most important roles (e.g. "marketing manager", "marketing director") out of
+# the top-N and miss most jobs — these terms pull them to the front instead.
+_PRIORITY_TERMS = (
+    "marketing manager",
+    "marketing director",
+    "head of marketing",
+    "brand manager",
+    "marketing communication",
+    "communication manager",
+    "marketing",
+    "brand",
+    "head of",
+    "manager",
+)
+
+
+def _title_priority(title: str) -> int:
+    t = title.lower()
+    for i, term in enumerate(_PRIORITY_TERMS):
+        if term in t:
+            return i
+    return len(_PRIORITY_TERMS)
+
+
 def _profile_search_titles(limit: int = _TITLES_PER_SITE) -> list[str]:
-    """Top target titles from the active (uploaded-CV) profile."""
-    titles = sorted(_profile.TARGET_TITLES)
-    return titles[:limit] if titles else ["manager"]
+    """Most relevant target titles from the active (uploaded-CV) profile.
+
+    Sorted by marketing relevance (not alphabetically) so the broad, high-yield
+    titles like 'marketing manager' / 'marketing director' are always searched.
+    """
+    titles = sorted(_profile.TARGET_TITLES, key=lambda t: (_title_priority(t), t))
+    return titles[:limit] if titles else ["marketing manager"]
 
 
 def _refresh_search_urls() -> None:
