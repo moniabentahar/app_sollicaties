@@ -590,6 +590,55 @@ interface ScanHeroProps {
   onUploadCv: (file: File) => void;
 }
 
+/** Lets the user point the app at their own backend (e.g. a PC tunnel URL),
+ *  saved in the browser so it works on Lovable without any rebuild. */
+function ConnectBackend() {
+  const [open, setOpen] = useState(false);
+  const [url, setUrl] = useState(() =>
+    typeof window !== "undefined" ? localStorage.getItem("apiBaseUrl") ?? "" : "",
+  );
+  const current = typeof window !== "undefined" ? localStorage.getItem("apiBaseUrl") : "";
+
+  function connect() {
+    localStorage.setItem("apiBaseUrl", url.trim().replace(/\/+$/, ""));
+    window.location.reload();
+  }
+  function reset() {
+    localStorage.removeItem("apiBaseUrl");
+    window.location.reload();
+  }
+
+  return (
+    <div className="border-t border-border bg-muted/30 px-6 py-2.5 text-xs">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="font-medium text-muted-foreground hover:text-foreground"
+      >
+        ⚙ Backend instellen{current ? " — verbonden met je eigen backend ✓" : ""}
+      </button>
+      {open && (
+        <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+          <input
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="https://....loca.lt  (jouw tunnel-URL)"
+            className="flex-1 rounded-md border border-input bg-card px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring/40"
+          />
+          <Button size="sm" onClick={connect} disabled={!url.trim()}>
+            Verbind
+          </Button>
+          {current && (
+            <Button size="sm" variant="outline" onClick={reset}>
+              Standaard
+            </Button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ScanHero({
   scanning,
   uploading,
@@ -691,6 +740,8 @@ function ScanHero({
           </Button>
         </div>
       </div>
+
+      <ConnectBackend />
 
       {scanning && !isPreview && (
         <div className="border-t border-border bg-muted/40 px-6 py-3">

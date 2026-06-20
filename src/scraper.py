@@ -20,7 +20,7 @@ from src.models import JobListing
 # Cheap, fast model for structured extraction; overridable via env.
 EXTRACT_MODEL = os.getenv("SOLLICITATIES_EXTRACT_MODEL", "claude-haiku-4-5")
 RATE_LIMIT_DELAY = 1.5   # seconds between requests; be polite to sites + LLM rate limits
-MAX_CONTEXT_CHARS = 18000  # cap page text sent to the LLM to control token cost
+MAX_CONTEXT_CHARS = int(os.getenv("SOLLICITATIES_MAX_CONTEXT", "40000"))  # cap page text to the LLM; big boards (Indeed) need more to reach the listings
 MIN_CONTEXT_CHARS = 200    # below this the page has no usable content; skip the LLM call
 
 # Shared extraction schema (LLM tool input). Field descriptions guide the model.
@@ -198,9 +198,9 @@ _KEYWORD_SITES: dict[str, tuple[str, str]] = {
     "hays":        ("q",    "https://www.hays.be/en/job-search?query={kw}&location=belgium"),
     # LinkedIn guest API: unauthenticated, returns structured HTML job cards; needs stealth fetcher.
     "linkedin":    ("q",    "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords={kw}&location=Belgium&start=0"),
-    # indeed: 403 on all IPs (datacenter + residential blocked)
-    # vdab: JS-only SPA — content not in initial HTML
-    # jobat: uses POST form for keyword search; GET slug URLs return 0 results
+    # indeed/vdab/jobat: page loads (200) but the jobs live in JavaScript/JSON,
+    # not in extractable text — generic extraction yields 0. Would need per-site
+    # JSON parsing. Excluded for now.
     # stepstone: ERR_HTTP2 / connection reset (blocked)
     # adecco: .be domain redirects all search queries to .com homepage
     # randstad: JS-rendered listings — context shows navigation only

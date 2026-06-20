@@ -53,18 +53,28 @@ export interface ScanResult {
   listings: Listing[]
 }
 
-// Fixed backend location. The app always talks to this one official backend —
-// there is no in-app form to point it elsewhere. Override at build time with
-// VITE_API_BASE_URL if you ever move the backend.
+function fromStore(key: string): string {
+  if (typeof window !== "undefined" && window.localStorage) {
+    return window.localStorage.getItem(key) ?? ""
+  }
+  return ""
+}
+
+// Backend location. A value set in the in-app "Verbind backend" form (saved in
+// the browser) wins over the build-time env and the default — so the app can be
+// pointed at your own PC backend via a tunnel URL without any rebuild.
 const DEFAULT_BACKEND = "https://moniabentahar-sollicitaties-backend.hf.space"
-const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? DEFAULT_BACKEND).replace(/\/+$/, "")
+const API_BASE = (fromStore("apiBaseUrl") || (import.meta.env.VITE_API_BASE_URL ?? DEFAULT_BACKEND)).replace(/\/+$/, "")
+
+// localtunnel serves a reminder page unless this header is present; harmless elsewhere.
+const TUNNEL_HEADERS: Record<string, string> = { "bypass-tunnel-reminder": "1" }
 
 function apiUrl(path: string): string {
   return `${API_BASE}${path}`
 }
 
 async function getJson<T>(path: string): Promise<T> {
-  const res = await fetch(apiUrl(path))
+  const res = await fetch(apiUrl(path), { headers: TUNNEL_HEADERS })
   if (!res.ok) throw new Error(`${res.status} ${res.statusText} — ${path}`)
   return res.json() as Promise<T>
 }
@@ -79,7 +89,7 @@ export const api = {
   async uploadCv(file: File): Promise<Profile> {
     const form = new FormData()
     form.append("file", file)
-    const res = await fetch(apiUrl("/api/profile/upload"), { method: "POST", body: form })
+    const res = await fetch(apiUrl("/api/profile/upload"), { method: "POST", body: form, headers: TUNNEL_HEADERS })
     if (!res.ok) {
       let detail = "could not read the CV"
       try {
@@ -93,7 +103,7 @@ export const api = {
   },
 
   async runScan(): Promise<"started" | "already-running"> {
-    const res = await fetch(apiUrl("/api/scan/run"), { method: "POST" })
+    const res = await fetch(apiUrl("/api/scan/run"), { method: "POST", headers: TUNNEL_HEADERS })
     if (res.status === 409) return "already-running"
     if (!res.ok) throw new Error("scan failed to start")
     return "started"
@@ -107,7 +117,7 @@ export const api = {
     const body = letter ? { ...job, cover_letter: letter } : job
     const res = await fetch(apiUrl("/api/applications"), {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...TUNNEL_HEADERS },
       body: JSON.stringify(body),
     })
     if (!res.ok) throw new Error("could not save application")
@@ -115,14 +125,14 @@ export const api = {
   },
 
   async deleteApplication(jobId: string): Promise<void> {
-    const res = await fetch(apiUrl(`/api/applications/${jobId}`), { method: "DELETE" })
+    const res = await fetch(apiUrl(`/api/applications/${jobId}`), { method: "DELETE", headers: TUNNEL_HEADERS })
     if (!res.ok) throw new Error("could not delete application")
   },
 
   async generateLetter(job: Listing): Promise<string> {
     const res = await fetch(apiUrl("/api/generate-letter"), {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...TUNNEL_HEADERS },
       body: JSON.stringify(job),
     })
     if (!res.ok) throw new Error("could not generate letter")
