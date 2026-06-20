@@ -56,7 +56,7 @@ export interface ScanResult {
 // Fixed backend location. The app always talks to this one official backend —
 // there is no in-app form to point it elsewhere. Override at build time with
 // VITE_API_BASE_URL if you ever move the backend.
-const DEFAULT_BACKEND = "https://ai-bruno-sollicitaties-backend.hf.space"
+const DEFAULT_BACKEND = "https://moniabentahar-sollicitaties-backend.hf.space"
 const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? DEFAULT_BACKEND).replace(/\/+$/, "")
 
 function apiUrl(path: string): string {
