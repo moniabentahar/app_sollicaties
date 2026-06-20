@@ -25,7 +25,7 @@ TIER_CONSIDER = "consider"
 TIER_LOW = "low"
 
 _TIER_THRESHOLDS = {
-    TIER_STRONG: 7,
+    TIER_STRONG: 5,
     TIER_CONSIDER: 4,
 }
 
