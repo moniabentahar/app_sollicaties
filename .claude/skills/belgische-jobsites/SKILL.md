@@ -18,14 +18,16 @@ description: |
 
 | Platform        | URL                                   | Scraper key    | Status    |
 |-----------------|---------------------------------------|----------------|-----------|
-| LinkedIn Jobs   | https://www.linkedin.com/jobs         | `linkedin`     | ⚠ 403 blok |
+| LinkedIn Jobs   | https://www.linkedin.com/jobs         | `linkedin`     | ⚠ stealth vereist |
 | VDAB            | https://www.vdab.be/jobs              | `vdab`         | ✅ actief   |
 | Indeed België   | https://be.indeed.com                 | `indeed`       | ✅ actief   |
 | Jobat           | https://www.jobat.be                  | `jobat`        | ✅ actief   |
 | StepStone BE    | https://www.stepstone.be              | `stepstone`    | ✅ actief   |
 
-> **Let op:** LinkedIn blokkeert scrapers (403). Gebruik LinkedIn
-> handmatig via de browser of via de LinkedIn API als die beschikbaar is.
+> **LinkedIn**: gebruikt de ongedocumenteerde guest jobs API
+> (`/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords=...&location=Belgium`)
+> met de **stealth fetcher** (camoufox). Vereist geen login. Werkt op lokaal/VPS IP;
+> geblokkeerd op HF Space datacenter IPs. Als 403: voeg `li_at` sessiecookie toe als env var.
 
 ---
 

@@ -196,13 +196,19 @@ _KEYWORD_SITES: dict[str, tuple[str, str]] = {
     "michaelpage": ("slug", "https://www.michaelpage.be/jobs/{slug}"),
     "roberthalf":  ("q",    "https://www.roberthalf.com/be/en/jobs?query={kw}"),
     "hays":        ("q",    "https://www.hays.be/en/job-search?query={kw}&location=belgium"),
+    # LinkedIn guest API: unauthenticated, returns structured HTML job cards; needs stealth fetcher.
+    "linkedin":    ("q",    "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords={kw}&location=Belgium&start=0"),
     # indeed: 403 on all IPs (datacenter + residential blocked)
     # vdab: JS-only SPA — content not in initial HTML
     # jobat: uses POST form for keyword search; GET slug URLs return 0 results
     # stepstone: ERR_HTTP2 / connection reset (blocked)
     # adecco: .be domain redirects all search queries to .com homepage
     # randstad: JS-rendered listings — context shows navigation only
-    # linkedin: blocks datacenter IPs
+}
+
+# Sites that need a specific fetcher regardless of the global SOLLICITATIES_FETCHER.
+_SITE_FETCHER_OVERRIDES: dict[str, str] = {
+    "linkedin": "stealth",  # guest API passes bot checks with browser fingerprint
 }
 
 
@@ -269,6 +275,10 @@ class ScraplingExtractor:
         self._llm = Anthropic(api_key=anthropic_key)
         self._use_browser = use_browser
         self._fetch = self._make_fetcher(use_browser)
+        self._site_fetchers: dict[str, object] = {
+            site: self._make_fetcher(fetcher_name == "stealth")
+            for site, fetcher_name in _SITE_FETCHER_OVERRIDES.items()
+        }
 
     @staticmethod
     def _make_fetcher(use_browser: bool):
@@ -305,8 +315,9 @@ class ScraplingExtractor:
             return lambda url: Fetcher.get(url, timeout=30)
 
     def _fetch_html(self, url: str, source_site: str) -> Optional[str]:
+        fetch = self._site_fetchers.get(source_site, self._fetch)
         try:
-            page = self._fetch(url)
+            page = fetch(url)
         except Exception as exc:
             print(f"  [warn] {source_site} fetch error: {type(exc).__name__}: {str(exc)[:80]}")
             return None
