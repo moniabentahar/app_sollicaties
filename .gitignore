@@ -46,3 +46,8 @@ config/profile.json
 cloudflared.exe
 scripts/start-online.bat
 docs/vacatures/*.csv
+
+# Lokale runtime (PC-backend)
+docs_tunnel.log
+docs_backend.log
+scripts/start-local.bat
