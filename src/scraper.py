@@ -190,6 +190,9 @@ SITE_URLS: dict[str, list[str]] = {
     "ebergiste": [
         "https://ebergiste.careersite.be/nl",
     ],
+    "yust": [
+        "https://yust.com/jobs/",
+    ],
 
     # ── 7. Oracle Recruiting Cloud sites (JS careers pages → JSON API) ──
     # The careers page is a JS SPA (no extractable HTML), but its requisitions
@@ -301,7 +304,7 @@ _LINKEDIN_FIRM_TERMS = (
 # marketing) appear on LinkedIn; we search by company name and let the domain
 # gate keep the relevant ones. Add new ones here as requested.
 _LINKEDIN_COMPANY_TERMS = (
-    "Leonidas", "Herbalife", "Vlerick",
+    "Leonidas", "Herbalife", "Vlerick", "Baloise",
 )
 
 

@@ -81,6 +81,14 @@ def _has(haystack: str, needles: frozenset[str]) -> bool:
     return any(needle in haystack for needle in needles)
 
 
+import re as _re
+
+
+def _has_word(haystack: str, needles: frozenset[str]) -> bool:
+    """Whole-word match — avoids 'intern' hitting 'interne'/'internal', etc."""
+    return any(_re.search(r"\b" + _re.escape(n) + r"\b", haystack) for n in needles)
+
+
 def score_listing(listing: JobListing) -> ScoredListing:
     score = 0
     flags: list[str] = []
@@ -93,7 +101,7 @@ def score_listing(listing: JobListing) -> ScoredListing:
     )
 
     # --- Exclusions (applied first so they can't be cancelled out) ---
-    if _has(blob, EXCLUDE_KEYWORDS):
+    if _has_word(blob, EXCLUDE_KEYWORDS):
         score += _PENALTY_JUNIOR
         flags.append("[!] junior/entry-level")
 
