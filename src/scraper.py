@@ -241,6 +241,7 @@ _KEYWORD_SITES: dict[str, tuple[str, str]] = {
 _SITE_FETCHER_OVERRIDES: dict[str, str] = {
     "linkedin": "stealth",  # guest API passes bot checks with browser fingerprint
     "indeed": "stealth",    # rendered page carries the job JSON; needs a real browser
+    "stepstone": "stealth",
 }
 
 # Indeed is searched on a focused set of high-yield marketing/comms terms (each is
@@ -252,6 +253,12 @@ _INDEED_TERMS = (
 )
 # Indeed shows ~15 jobs per page; fetch the first two pages to reach page-2 roles.
 _INDEED_PAGES = (0, 10)
+
+# StepStone search slugs (jobs are parsed from embedded JSON, not the LLM).
+_STEPSTONE_TERMS = (
+    "marketing-manager", "marketing-director", "communicatie",
+    "brand-manager", "content-marketing", "sponsoring", "employer-branding",
+)
 
 
 # How many of the candidate's titles to search per site. Lower = faster scan
@@ -309,6 +316,7 @@ _LINKEDIN_FIELD_TERMS = (
 _LINKEDIN_FIRM_TERMS = (
     "Batenborch", "Stanton Chase", "SpenglerFox", "Russell Reynolds",
     "Korn Ferry", "Ingenium Executive Search", "Altior", "Embark",
+    "Mercuri Urval",
 )
 
 # Specific employers the candidate wants covered. Their jobs (incl. sponsoring/
@@ -351,6 +359,7 @@ def _refresh_search_urls() -> None:
         for t in _INDEED_TERMS
         for s in _INDEED_PAGES
     ]
+    SITE_URLS["stepstone"] = [f"https://www.stepstone.be/jobs/{t}" for t in _STEPSTONE_TERMS]
 
 
 _refresh_search_urls()
@@ -494,6 +503,67 @@ def _parse_indeed_json(html: str) -> list[JobListing]:
     return out
 
 
+def _parse_stepstone_json(html: str) -> list[JobListing]:
+    """Parse StepStone's embedded job list (no LLM). The results page ships the
+    jobs in a `window.__PRELOADED_STATE__` script as JSON objects with id/title/
+    companyName/location/url. We balance-extract each object and read it."""
+    import json
+    import re
+
+    blob = None
+    for m in re.finditer(r"<script[^>]*>(.*?)</script>", html, re.S):
+        s = m.group(1)
+        if '"companyName"' in s and '"title"' in s:
+            blob = s
+            break
+    if not blob:
+        return []
+
+    out: list[JobListing] = []
+    seen: set[int] = set()
+    for jm in re.finditer(r'\{"id":\d+,"title":', blob):
+        start = jm.start()
+        depth = 0
+        end = start
+        for i in range(start, min(start + 4000, len(blob))):
+            c = blob[i]
+            if c == "{":
+                depth += 1
+            elif c == "}":
+                depth -= 1
+                if depth == 0:
+                    end = i + 1
+                    break
+        try:
+            j = json.loads(blob[start:end])
+        except (ValueError, TypeError):
+            continue
+        title = (j.get("title") or "").strip()
+        jid = j.get("id")
+        if not title or jid in seen:
+            continue
+        seen.add(jid)
+        url = j.get("url") or ""
+        if url.startswith("/"):
+            url = "https://www.stepstone.be" + url
+        out.append(
+            JobListing(
+                title=title,
+                company=(j.get("companyName") or "").strip() or "via StepStone",
+                location=(j.get("location") or "").strip(),
+                source_site="stepstone",
+                remote="hybrid" if j.get("workFromHome") else "unknown",
+                experience_level="",
+                languages=[],
+                skills=[],
+                posted_date=(j.get("datePosted") or "")[:10],
+                apply_url=url.split("?")[0],
+                description_summary="",
+            )
+        )
+    return out
+
+
 class ScraplingExtractor:
     """Fetch a page with Scrapling, extract job listings with Claude."""
 
@@ -590,6 +660,8 @@ class ScraplingExtractor:
             return []
         if source_site == "indeed":
             return _parse_indeed_json(html)
+        if source_site == "stepstone":
+            return _parse_stepstone_json(html)
         context = _html_to_context(html, base_url=url)
         print(f"    [ctx] html={len(html)}ch context={len(context)}ch url={url[:70]}")
         if len(context) < MIN_CONTEXT_CHARS:
