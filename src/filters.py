@@ -38,7 +38,7 @@ _TIER_THRESHOLDS = {
 _DOMAIN_TITLE_TERMS = frozenset({
     # Core marketing
     "marketing", "brand", "merk", "communicat", "campaign", "campagne",
-    "content", "social media", "seo", "sea", "digital marketing",
+    "content", "social media", "seo", "search engine", "sea marketing", "digital marketing",
     "growth marketing", "growth manager", "head of growth", "growth lead", "growth hacker",
     "advertising", "advertentie", "media planner", "media buyer",
     "activation", "activatie", "crm", "go-to-market", "demand generation",

@@ -1720,25 +1720,6 @@
       "tier": "strong"
     },
     {
-      "title": "Managing Consultant in research, analysis and evaluation – Home affairs and security",
-      "company": "ICF",
-      "location": "Brussels, Brussels Region, Belgium",
-      "source_site": "linkedin",
-      "remote": "unknown",
-      "experience_level": "",
-      "languages": [],
-      "skills": [],
-      "posted_date": "1 week ago",
-      "apply_url": "https://be.linkedin.com/jobs/view/managing-consultant-in-research-analysis-and-evaluation-%E2%80%93-home-affairs-and-security-at-icf-4427272818?position=10&pageNum=0&refId=VEPIFriwgj4VCtSSbyPpSg%3D%3D&trackingId=z4%2F5kAzb5ZsPGkQ5cBRKeQ%3D%3D",
-      "description_summary": "",
-      "score": 5,
-      "flags": [
-        "[+] title match",
-        "[+] Belgium"
-      ],
-      "tier": "strong"
-    },
-    {
       "title": "Marketing & PR Manager of DENZA, BeLux",
       "company": "BYD EUROPE",
       "location": "Brussels, Brussels Region, Belgium",
@@ -2213,6 +2194,24 @@
         "[+] title match",
         "[+] Belgium",
         "[+] 1 skill(s) matched"
+      ],
+      "tier": "low"
+    },
+    {
+      "title": "Managing Consultant in research, analysis and evaluation – Home affairs and security",
+      "company": "ICF",
+      "location": "Brussels, Brussels Region, Belgium",
+      "source_site": "linkedin",
+      "remote": "unknown",
+      "experience_level": "",
+      "languages": [],
+      "skills": [],
+      "posted_date": "1 week ago",
+      "apply_url": "https://be.linkedin.com/jobs/view/managing-consultant-in-research-analysis-and-evaluation-%E2%80%93-home-affairs-and-security-at-icf-4427272818?position=10&pageNum=0&refId=VEPIFriwgj4VCtSSbyPpSg%3D%3D&trackingId=z4%2F5kAzb5ZsPGkQ5cBRKeQ%3D%3D",
+      "description_summary": "",
+      "score": 2,
+      "flags": [
+        "[+] Belgium"
       ],
       "tier": "low"
     },
