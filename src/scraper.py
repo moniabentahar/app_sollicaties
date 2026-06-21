@@ -283,6 +283,16 @@ _LINKEDIN_FIELD_TERMS = (
     "sponsorship manager", "partnership manager", "pr manager",
 )
 
+# Executive-search / recruitment firms the candidate wants covered. Most have
+# JS-rendered sites that don't list publicly, but their postings appear on
+# LinkedIn — so we search LinkedIn by firm name and let the marketing domain
+# gate keep only the relevant roles. (Robert Half/Walters/Michael Page/Hays are
+# already direct sources.)
+_LINKEDIN_FIRM_TERMS = (
+    "Batenborch", "Stanton Chase", "SpenglerFox", "Russell Reynolds",
+    "Korn Ferry", "Ingenium Executive Search", "Altior", "Embark",
+)
+
 
 def _profile_search_titles(limit: int = _TITLES_PER_SITE) -> list[str]:
     """Most relevant target titles from the active (uploaded-CV) profile.
@@ -305,7 +315,7 @@ def _refresh_search_urls() -> None:
     field list; the other keyword sites use the active CV's target titles."""
     titles = _profile_search_titles()
     for site, (kind, tmpl) in _KEYWORD_SITES.items():
-        terms = _LINKEDIN_FIELD_TERMS if site == "linkedin" else titles
+        terms = (_LINKEDIN_FIELD_TERMS + _LINKEDIN_FIRM_TERMS) if site == "linkedin" else titles
         SITE_URLS[site] = [
             tmpl.format(slug=t.replace(" ", "-")) if kind == "slug" else tmpl.format(kw=quote_plus(t))
             for t in terms
