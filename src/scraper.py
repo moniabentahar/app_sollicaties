@@ -186,6 +186,10 @@ SITE_URLS: dict[str, list[str]] = {
     "dsmkeukens": [
         "https://www.dsmkeukens.be/vacatures/",
     ],
+    # careersite.be platform (platte HTML) — gebruikt door veel BE werkgevers/vzw's
+    "ebergiste": [
+        "https://ebergiste.careersite.be/nl",
+    ],
 
     # ── 7. Oracle Recruiting Cloud sites (JS careers pages → JSON API) ──
     # The careers page is a JS SPA (no extractable HTML), but its requisitions
