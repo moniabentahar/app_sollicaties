@@ -139,6 +139,17 @@ export const api = {
     const data = (await res.json()) as { letter: string }
     return data.letter
   },
+
+  async generateCv(job: Listing): Promise<string> {
+    const res = await fetch(apiUrl("/api/generate-cv"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...TUNNEL_HEADERS },
+      body: JSON.stringify(job),
+    })
+    if (!res.ok) throw new Error("could not generate cv")
+    const data = (await res.json()) as { cv: string }
+    return data.cv
+  },
 }
 
 // ── Presentation helpers ──────────────────────────────────────────────

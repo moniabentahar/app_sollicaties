@@ -104,6 +104,7 @@ function App() {
   const [letterJob, setLetterJob] = useState<Listing | null>(null);
   const [letterOpen, setLetterOpen] = useState(false);
   const [letterText, setLetterText] = useState("");
+  const [cvText, setCvText] = useState("");
   const [letterLoading, setLetterLoading] = useState(false);
   const [letterReadOnly, setLetterReadOnly] = useState(false);
 
@@ -262,15 +263,20 @@ function App() {
   async function handleGenerateLetter(job: Listing) {
     setLetterJob(job);
     setLetterText("");
+    setCvText("");
     setLetterLoading(true);
     setLetterReadOnly(false);
     setLetterOpen(true);
     try {
-      setLetterText(await api.generateLetter(job));
-    } catch {
-      setLetterText("Kon de brief niet genereren. Probeer het opnieuw.");
+      const [letter, cv] = await Promise.all([
+        api.generateLetter(job).catch(() => "Kon de brief niet genereren. Probeer opnieuw."),
+        api.generateCv(job).catch(() => "Kon het CV niet genereren. Probeer opnieuw."),
+      ]);
+      setLetterText(letter);
+      setCvText(cv);
+    } finally {
+      setLetterLoading(false);
     }
-    setLetterLoading(false);
   }
 
   async function handleConfirmApply() {
@@ -535,6 +541,7 @@ function App() {
                     job={job}
                     applied={isApplied(job)}
                     onOpen={() => openDetail(job)}
+                    onApply={() => handleGenerateLetter(job)}
                   />
                 ))}
                 {filtered.length === 0 && (
@@ -574,8 +581,10 @@ function App() {
         onOpenChange={setLetterOpen}
         job={letterJob}
         letter={letterText}
+        cv={cvText}
         loading={letterLoading}
         onLetterChange={setLetterText}
+        onCvChange={setCvText}
         onConfirm={letterReadOnly ? undefined : handleConfirmApply}
         readOnly={letterReadOnly}
       />
@@ -777,9 +786,10 @@ interface JobCardProps {
   job: Listing;
   applied: boolean;
   onOpen: () => void;
+  onApply: () => void;
 }
 
-function JobCard({ job, applied, onOpen }: JobCardProps) {
+function JobCard({ job, applied, onOpen, onApply }: JobCardProps) {
   const color = tierColor(job.tier);
   const posted = postedAgo(job.posted_date);
   const remoteLabel =
@@ -848,15 +858,16 @@ function JobCard({ job, applied, onOpen }: JobCardProps) {
             </span>
           )}
           {job.apply_url && (
-            <a
-              href={job.apply_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => e.stopPropagation()}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onApply();
+              }}
               className="inline-flex items-center gap-1 rounded-lg border border-input px-3 py-1.5 text-xs font-semibold transition hover:bg-foreground hover:text-background"
             >
               Solliciteer <ExternalLink className="h-3.5 w-3.5" />
-            </a>
+            </button>
           )}
         </div>
       </div>

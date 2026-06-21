@@ -238,6 +238,53 @@ def _build_cover_letter(job: dict) -> str:
     )
 
 
+def _build_cv(job: dict) -> str:
+    """A tailored one-page CV draft built from the uploaded profile, in the job's
+    language, with skills that match the vacancy listed first. Editable by the user."""
+    profile = load_profile()
+    if not (profile.get("name") or profile.get("core_skills")):
+        return "Upload eerst een CV om een CV-voorstel te genereren."
+
+    name = profile.get("name") or "Kandidaat"
+    contact = " | ".join(
+        c for c in (profile.get("location"), profile.get("email"), profile.get("phone")) if c
+    )
+    lang = _detect_letter_language(job)
+    title = job.get("title", "")
+    company = job.get("company", "")
+
+    skills = list(profile.get("core_skills", []))
+    raw = _normalise_skills(job.get("skills", []))
+    core_lower = {s.lower(): s for s in skills}
+    matched = [core_lower[s.lower()] for s in raw if s.lower() in core_lower]
+    ordered = matched + [s for s in skills if s not in matched]
+    skills_block = "\n".join(f"• {s}" for s in ordered[:10]) or "•"
+    langs = ", ".join(profile.get("languages", [])) or "—"
+    titles = ", ".join(sorted(profile.get("target_titles", []))[:6]) or title
+
+    labels = {
+        "nl": ("Gericht op", "PROFIEL", "KERNCOMPETENTIES", "TALEN", "GEWENSTE FUNCTIES",
+               f"Gemotiveerde, resultaatgerichte professional met ervaring in marketing, "
+               f"communicatie en sponsoring. Klaar om bij te dragen aan {company} als {title}."),
+        "fr": ("Pour le poste de", "PROFIL", "COMPÉTENCES CLÉS", "LANGUES", "FONCTIONS VISÉES",
+               f"Professionnel(le) motivé(e) et orienté(e) résultats, expérimenté(e) en marketing, "
+               f"communication et sponsoring. Prêt(e) à contribuer à {company} en tant que {title}."),
+        "en": ("Applying for", "PROFILE", "KEY SKILLS", "LANGUAGES", "TARGET ROLES",
+               f"Motivated, results-driven professional experienced in marketing, communication "
+               f"and sponsorship. Ready to contribute to {company} as {title}."),
+    }[lang]
+    aim, p_lbl, s_lbl, l_lbl, t_lbl, summary = labels
+
+    return (
+        f"{name}\n{contact}\n"
+        f"{aim}: {title} — {company}\n\n"
+        f"{p_lbl}\n{summary}\n\n"
+        f"{s_lbl}\n{skills_block}\n\n"
+        f"{l_lbl}\n{langs}\n\n"
+        f"{t_lbl}\n{titles}\n"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Profile
 # ---------------------------------------------------------------------------
@@ -445,6 +492,12 @@ async def generate_letter(request: Request) -> dict:
     job = await request.json()
     letter = _build_cover_letter(job)
     return {"letter": letter}
+
+
+@app.post("/api/generate-cv")
+async def generate_cv(request: Request) -> dict:
+    job = await request.json()
+    return {"cv": _build_cv(job)}
 
 
 # ---------------------------------------------------------------------------
