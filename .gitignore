@@ -52,3 +52,5 @@ docs_tunnel.log
 docs_backend.log
 scripts/start-local.bat
 scripts/keep-awake.ps1
+scripts/watchdog.ps1
+scripts/launch-hidden.vbs
