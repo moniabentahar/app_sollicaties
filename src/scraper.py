@@ -240,7 +240,18 @@ _KEYWORD_SITES: dict[str, tuple[str, str]] = {
 # Sites that need a specific fetcher regardless of the global SOLLICITATIES_FETCHER.
 _SITE_FETCHER_OVERRIDES: dict[str, str] = {
     "linkedin": "stealth",  # guest API passes bot checks with browser fingerprint
+    "indeed": "stealth",    # rendered page carries the job JSON; needs a real browser
 }
+
+# Indeed is searched on a focused set of high-yield marketing/comms terms (each is
+# one query). Jobs are parsed from the embedded JSON, not via the LLM.
+_INDEED_TERMS = (
+    "marketing manager", "marketing director", "communicatie",
+    "brand manager", "content marketing", "sponsoring", "partnership manager",
+    "responsable marketing", "employer branding",  # incl. Franstalig
+)
+# Indeed shows ~15 jobs per page; fetch the first two pages to reach page-2 roles.
+_INDEED_PAGES = (0, 10)
 
 
 # How many of the candidate's titles to search per site. Lower = faster scan
@@ -334,6 +345,12 @@ def _refresh_search_urls() -> None:
             tmpl.format(slug=t.replace(" ", "-")) if kind == "slug" else tmpl.format(kw=quote_plus(t))
             for t in terms
         ]
+    # Indeed: general board, parsed from embedded JSON (not an LLM keyword site).
+    SITE_URLS["indeed"] = [
+        f"https://be.indeed.com/jobs?q={quote_plus(t)}&l=Belgi%C3%AB&start={s}"
+        for t in _INDEED_TERMS
+        for s in _INDEED_PAGES
+    ]
 
 
 _refresh_search_urls()
@@ -425,6 +442,53 @@ def _fetch_oracle_orc(api_url: str, company: str, source_site: str) -> list[JobL
                 posted_date=(r.get("PostedDate") or "").strip(),
                 apply_url=f"{detail_base}{r.get('Id')}" if r.get("Id") else api_url,
                 description_summary="",
+            )
+        )
+    return out
+
+
+def _parse_indeed_json(html: str) -> list[JobListing]:
+    """Parse Indeed's embedded job JSON (no LLM). Indeed renders the results
+    page as a JS app but ships the job cards in a `mosaic-provider-jobcards`
+    blob; we read it directly. The job-detail URL is rebuilt from the jobkey."""
+    import json
+    import re
+
+    m = re.search(
+        r'window\.mosaic\.providerData\["mosaic-provider-jobcards"\]\s*=\s*(\{.*?\});',
+        html, re.S,
+    )
+    if not m:
+        return []
+    try:
+        data = json.loads(m.group(1))
+    except (ValueError, TypeError):
+        return []
+    results = (
+        data.get("metaData", {})
+        .get("mosaicProviderJobCardsModel", {})
+        .get("results", [])
+    )
+    out: list[JobListing] = []
+    for r in results:
+        title = (r.get("title") or "").strip()
+        if not title:
+            continue
+        jk = r.get("jobkey", "")
+        snippet = re.sub(r"<[^>]+>", " ", r.get("snippet") or "").strip()
+        out.append(
+            JobListing(
+                title=title,
+                company=(r.get("company") or "").strip() or "via Indeed",
+                location=(r.get("formattedLocation") or r.get("jobLocationCity") or "").strip(),
+                source_site="indeed",
+                remote="remote" if r.get("remoteLocation") else "unknown",
+                experience_level="",
+                languages=[],
+                skills=[],
+                posted_date=r.get("formattedRelativeTime", ""),
+                apply_url=f"https://be.indeed.com/viewjob?jk={jk}" if jk else "",
+                description_summary=snippet[:300],
             )
         )
     return out
@@ -524,6 +588,8 @@ class ScraplingExtractor:
         html = self._fetch_html(url, source_site)
         if not html:
             return []
+        if source_site == "indeed":
+            return _parse_indeed_json(html)
         context = _html_to_context(html, base_url=url)
         print(f"    [ctx] html={len(html)}ch context={len(context)}ch url={url[:70]}")
         if len(context) < MIN_CONTEXT_CHARS:
