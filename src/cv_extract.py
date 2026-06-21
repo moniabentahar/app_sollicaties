@@ -23,6 +23,41 @@ _PROFILE_SCHEMA = {
         "location": {"type": "string", "description": "The candidate's city/region and country, as written in the CV."},
         "email": {"type": "string", "description": "The candidate's email address from the CV (empty string if none)."},
         "phone": {"type": "string", "description": "The candidate's phone number from the CV (empty string if none)."},
+        "summary": {
+            "type": "string",
+            "description": "A 2-4 sentence professional summary of the candidate, in the CV's main language, reflecting their real experience.",
+        },
+        "experience": {
+            "type": "array",
+            "description": "The candidate's work experience, most recent first, exactly as in the CV.",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "role": {"type": "string", "description": "Job title held."},
+                    "company": {"type": "string", "description": "Employer name."},
+                    "period": {"type": "string", "description": "Dates, e.g. '2019 - 2023' or 'jan 2020 - heden'."},
+                    "highlights": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "2-4 key achievements or responsibilities, concise, as written in the CV.",
+                    },
+                },
+                "required": ["role", "company"],
+            },
+        },
+        "education": {
+            "type": "array",
+            "description": "The candidate's education, most recent first.",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "degree": {"type": "string", "description": "Diploma / degree obtained."},
+                    "school": {"type": "string", "description": "School / university name."},
+                    "period": {"type": "string", "description": "Years, e.g. '2010 - 2014'."},
+                },
+                "required": ["degree"],
+            },
+        },
         "target_titles": {
             "type": "array",
             "items": {"type": "string"},
@@ -63,9 +98,11 @@ _PROFILE_TOOL = {
 _PROMPT = (
     "The attached PDF is a candidate's CV / resume. Read it and build a job-search profile by "
     "calling record_profile. Pull the identity fields (name, location, email, phone) directly "
-    "from the document — do not invent them. Infer realistic target job titles and core skills "
-    "from the candidate's actual experience and seniority level. The candidate is looking for "
-    "jobs in Belgium, so favour titles and skills relevant to their field."
+    "from the document — do not invent them. Also capture, exactly as written in the CV: a short "
+    "professional summary, the full work experience (role, company, period, key highlights) and "
+    "the education. Infer realistic target job titles and core skills from the candidate's actual "
+    "experience and seniority level. The candidate is looking for jobs in Belgium, so favour "
+    "titles and skills relevant to their field."
 )
 
 
@@ -78,7 +115,7 @@ def extract_profile_from_pdf(pdf_bytes: bytes, api_key: str) -> dict:
 
     msg = client.messages.create(
         model=CV_MODEL,
-        max_tokens=2048,
+        max_tokens=4096,
         tools=[_PROFILE_TOOL],
         tool_choice={"type": "tool", "name": "record_profile"},
         messages=[{
@@ -103,13 +140,16 @@ def extract_profile_from_pdf(pdf_bytes: bytes, api_key: str) -> dict:
 def _normalise(raw: dict) -> dict:
     """Coerce the model output into the full EMPTY_PROFILE shape."""
     profile = dict(EMPTY_PROFILE)
-    for key in ("name", "location", "email", "phone"):
+    for key in ("name", "location", "email", "phone", "summary"):
         val = raw.get(key, "")
         profile[key] = val.strip() if isinstance(val, str) else ""
     for key in ("target_titles", "core_skills", "languages", "preferred_languages"):
         val = raw.get(key, [])
         if isinstance(val, list):
             profile[key] = [str(x).strip().lower() for x in val if str(x).strip()]
+    for key in ("experience", "education"):
+        val = raw.get(key, [])
+        profile[key] = [x for x in val if isinstance(x, dict)] if isinstance(val, list) else []
     return profile
 
 

@@ -263,26 +263,51 @@ def _build_cv(job: dict) -> str:
     titles = ", ".join(sorted(profile.get("target_titles", []))[:6]) or title
 
     labels = {
-        "nl": ("Gericht op", "PROFIEL", "KERNCOMPETENTIES", "TALEN", "GEWENSTE FUNCTIES",
+        "nl": ("Gericht op", "PROFIEL", "WERKERVARING", "OPLEIDING", "KERNCOMPETENTIES",
+               "TALEN", "GEWENSTE FUNCTIES",
                f"Gemotiveerde, resultaatgerichte professional met ervaring in marketing, "
                f"communicatie en sponsoring. Klaar om bij te dragen aan {company} als {title}."),
-        "fr": ("Pour le poste de", "PROFIL", "COMPÉTENCES CLÉS", "LANGUES", "FONCTIONS VISÉES",
+        "fr": ("Pour le poste de", "PROFIL", "EXPÉRIENCE", "FORMATION", "COMPÉTENCES CLÉS",
+               "LANGUES", "FONCTIONS VISÉES",
                f"Professionnel(le) motivé(e) et orienté(e) résultats, expérimenté(e) en marketing, "
                f"communication et sponsoring. Prêt(e) à contribuer à {company} en tant que {title}."),
-        "en": ("Applying for", "PROFILE", "KEY SKILLS", "LANGUAGES", "TARGET ROLES",
+        "en": ("Applying for", "PROFILE", "EXPERIENCE", "EDUCATION", "KEY SKILLS",
+               "LANGUAGES", "TARGET ROLES",
                f"Motivated, results-driven professional experienced in marketing, communication "
                f"and sponsorship. Ready to contribute to {company} as {title}."),
     }[lang]
-    aim, p_lbl, s_lbl, l_lbl, t_lbl, summary = labels
+    aim, p_lbl, exp_lbl, edu_lbl, s_lbl, l_lbl, t_lbl, fallback_summary = labels
 
-    return (
-        f"{name}\n{contact}\n"
-        f"{aim}: {title} — {company}\n\n"
-        f"{p_lbl}\n{summary}\n\n"
-        f"{s_lbl}\n{skills_block}\n\n"
-        f"{l_lbl}\n{langs}\n\n"
-        f"{t_lbl}\n{titles}\n"
-    )
+    summary = profile.get("summary") or fallback_summary
+
+    exp_lines = []
+    for e in profile.get("experience", []):
+        head = " — ".join(p for p in (e.get("role"), e.get("company")) if p)
+        period = e.get("period")
+        exp_lines.append(f"{head}{f'  ({period})' if period else ''}")
+        for h in (e.get("highlights") or [])[:4]:
+            exp_lines.append(f"  • {h}")
+    exp_block = "\n".join(exp_lines)
+
+    edu_lines = []
+    for e in profile.get("education", []):
+        head = " — ".join(p for p in (e.get("degree"), e.get("school")) if p)
+        period = e.get("period")
+        edu_lines.append(f"{head}{f'  ({period})' if period else ''}")
+    edu_block = "\n".join(edu_lines)
+
+    parts = [
+        f"{name}\n{contact}\n{aim}: {title} — {company}",
+        f"{p_lbl}\n{summary}",
+    ]
+    if exp_block:
+        parts.append(f"{exp_lbl}\n{exp_block}")
+    if edu_block:
+        parts.append(f"{edu_lbl}\n{edu_block}")
+    parts.append(f"{s_lbl}\n{skills_block}")
+    parts.append(f"{l_lbl}\n{langs}")
+    parts.append(f"{t_lbl}\n{titles}")
+    return "\n\n".join(parts) + "\n"
 
 
 # ---------------------------------------------------------------------------

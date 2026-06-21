@@ -22,10 +22,13 @@ EMPTY_PROFILE: dict = {
     "location": "",
     "email": "",
     "phone": "",
+    "summary": "",
     "target_titles": [],
     "core_skills": [],
     "languages": [],
     "preferred_languages": [],
+    "experience": [],
+    "education": [],
 }
 
 
