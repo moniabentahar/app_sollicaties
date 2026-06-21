@@ -293,6 +293,13 @@ _LINKEDIN_FIRM_TERMS = (
     "Korn Ferry", "Ingenium Executive Search", "Altior", "Embark",
 )
 
+# Specific employers the candidate wants covered. Their jobs (incl. sponsoring/
+# marketing) appear on LinkedIn; we search by company name and let the domain
+# gate keep the relevant ones. Add new ones here as requested.
+_LINKEDIN_COMPANY_TERMS = (
+    "Leonidas", "Herbalife", "Vlerick",
+)
+
 
 def _profile_search_titles(limit: int = _TITLES_PER_SITE) -> list[str]:
     """Most relevant target titles from the active (uploaded-CV) profile.
@@ -315,7 +322,7 @@ def _refresh_search_urls() -> None:
     field list; the other keyword sites use the active CV's target titles."""
     titles = _profile_search_titles()
     for site, (kind, tmpl) in _KEYWORD_SITES.items():
-        terms = (_LINKEDIN_FIELD_TERMS + _LINKEDIN_FIRM_TERMS) if site == "linkedin" else titles
+        terms = (_LINKEDIN_FIELD_TERMS + _LINKEDIN_FIRM_TERMS + _LINKEDIN_COMPANY_TERMS) if site == "linkedin" else titles
         SITE_URLS[site] = [
             tmpl.format(slug=t.replace(" ", "-")) if kind == "slug" else tmpl.format(kw=quote_plus(t))
             for t in terms
@@ -323,6 +330,14 @@ def _refresh_search_urls() -> None:
 
 
 _refresh_search_urls()
+
+
+def _clean_apply_url(u: str, source_site: str) -> str:
+    """Strip tracking query params from LinkedIn job URLs — the long
+    ?position=&trackingId= tails can trigger redirect/blocking issues."""
+    if u and source_site == "linkedin" and "?" in u:
+        return u.split("?", 1)[0]
+    return u
 
 
 def _html_to_context(html: str, base_url: str) -> str:
@@ -525,7 +540,7 @@ class ScraplingExtractor:
                     languages=job.get("languages") or [],
                     skills=job.get("skills") or [],
                     posted_date=job.get("posted_date", ""),
-                    apply_url=job.get("apply_url") or url,
+                    apply_url=_clean_apply_url(job.get("apply_url") or url, source_site),
                     description_summary=job.get("description_summary", ""),
                 )
             )
