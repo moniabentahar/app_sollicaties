@@ -51,3 +51,4 @@ docs/vacatures/*.csv
 docs_tunnel.log
 docs_backend.log
 scripts/start-local.bat
+scripts/keep-awake.ps1
