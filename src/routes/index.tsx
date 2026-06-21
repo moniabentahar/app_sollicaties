@@ -98,6 +98,34 @@ function App() {
   const [filterSite, setFilterSite] = useState("all");
   const [tab, setTab] = useState<"listings" | "applied">("listings");
 
+  // Jobs the user marked "not interested" — kept in the browser (per device).
+  // Loaded after mount to stay SSR-safe (no hydration mismatch).
+  const [hidden, setHidden] = useState<Set<string>>(new Set());
+  const [showHidden, setShowHidden] = useState(false);
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem("hiddenJobs");
+      if (raw) setHidden(new Set(JSON.parse(raw) as string[]));
+    } catch {
+      /* ignore corrupt storage */
+    }
+  }, []);
+
+  function toggleHidden(job: Listing) {
+    setHidden((prev) => {
+      const key = listingKey(job);
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      try {
+        window.localStorage.setItem("hiddenJobs", JSON.stringify([...next]));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }
+
   const [detailJob, setDetailJob] = useState<Listing | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
 
@@ -333,6 +361,7 @@ function App() {
     const q = query.trim().toLowerCase();
     return listings
       .filter((l) => {
+        if (!showHidden && hidden.has(listingKey(l))) return false;
         if (filterTier !== "all" && l.tier !== filterTier) return false;
         if (filterSite !== "all" && l.source_site !== filterSite) return false;
         if (q) {
@@ -344,7 +373,12 @@ function App() {
       // Best matches first, always — so the strong matches stay on top
       // instead of "disappearing" when live scan results replace the demo.
       .sort((a, b) => (Number(b.score) || 0) - (Number(a.score) || 0));
-  }, [listings, query, filterTier, filterSite]);
+  }, [listings, query, filterTier, filterSite, hidden, showHidden]);
+
+  const hiddenInView = useMemo(
+    () => listings.filter((l) => hidden.has(listingKey(l))).length,
+    [listings, hidden],
+  );
 
   return (
     <div className="grain relative min-h-screen">
@@ -531,17 +565,33 @@ function App() {
               />
             ) : (
               <section className="space-y-3">
-                <p className="mb-1 text-xs text-muted-foreground">
-                  {filtered.length} van {listings.length} vacatures
-                  {currentFile ? ` · ${currentFile}` : ""}
-                </p>
+                <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs text-muted-foreground">
+                    {filtered.length} van {listings.length} vacatures
+                    {currentFile ? ` · ${currentFile}` : ""}
+                  </p>
+                  {hiddenInView > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowHidden((v) => !v)}
+                      className="text-xs font-medium text-muted-foreground underline-offset-2 hover:underline"
+                    >
+                      {showHidden
+                        ? "Verberg niet-interessante"
+                        : `Toon ${hiddenInView} niet-interessante`}
+                    </button>
+                  )}
+                </div>
                 {filtered.map((job) => (
                   <JobCard
                     key={listingKey(job)}
                     job={job}
                     applied={isApplied(job)}
+                    hidden={hidden.has(listingKey(job))}
                     onOpen={() => openDetail(job)}
                     onApply={() => handleGenerateLetter(job)}
+                    onToggleApplied={() => handleToggleApplied(job)}
+                    onHide={() => toggleHidden(job)}
                   />
                 ))}
                 {filtered.length === 0 && (
@@ -785,11 +835,14 @@ function EmptyState({ title, body }: { title: string; body: string }) {
 interface JobCardProps {
   job: Listing;
   applied: boolean;
+  hidden: boolean;
   onOpen: () => void;
   onApply: () => void;
+  onToggleApplied: () => void;
+  onHide: () => void;
 }
 
-function JobCard({ job, applied, onOpen, onApply }: JobCardProps) {
+function JobCard({ job, applied, hidden, onOpen, onApply, onToggleApplied, onHide }: JobCardProps) {
   const color = tierColor(job.tier);
   const posted = postedAgo(job.posted_date);
   const remoteLabel =
@@ -869,6 +922,30 @@ function JobCard({ job, applied, onOpen, onApply }: JobCardProps) {
               Solliciteer <ExternalLink className="h-3.5 w-3.5" />
             </button>
           )}
+
+          <div className="flex items-center gap-2 text-[11px]">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleApplied();
+              }}
+              className={`font-medium ${applied ? "text-accent" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              {applied ? "✓ Gesolliciteerd" : "Al gesolliciteerd"}
+            </button>
+            <span className="text-border">·</span>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onHide();
+              }}
+              className="font-medium text-muted-foreground hover:text-foreground"
+            >
+              {hidden ? "Terugzetten" : "Niet interessant"}
+            </button>
+          </div>
         </div>
       </div>
 
