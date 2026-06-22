@@ -633,7 +633,9 @@ def _index_file() -> Path:
 
 @app.get("/")
 def serve_index() -> FileResponse:
-    return FileResponse(_index_file())
+    # Never cache the HTML shell: it references hashed JS bundles, so a stale
+    # cached index.html would keep loading an old app version after an update.
+    return FileResponse(_index_file(), headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
 
 # Vite emits hashed bundles under dist/assets/ referenced as /assets/*.
