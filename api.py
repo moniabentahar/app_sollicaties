@@ -43,7 +43,7 @@ _scheduler = AsyncIOScheduler(timezone=_BRUSSELS)
 async def lifespan(_app: FastAPI):
     _scheduler.add_job(
         _trigger_auto_scan,
-        CronTrigger(day_of_week="tue,fri", hour=8, minute=0, timezone=_BRUSSELS),
+        CronTrigger(day_of_week="tue,thu", hour=8, minute=0, timezone=_BRUSSELS),
         id="auto_scan",
         replace_existing=True,
         misfire_grace_time=3600,
@@ -475,7 +475,7 @@ async def _trigger_auto_scan() -> None:
 def get_scan_schedule() -> dict:
     job = _scheduler.get_job("auto_scan")
     next_run = job.next_run_time.isoformat() if job and job.next_run_time else None
-    return {"next_run": next_run, "days": ["dinsdag", "vrijdag"], "hour": 8}
+    return {"next_run": next_run, "days": ["dinsdag", "donderdag"], "hour": 8}
 
 
 # ---------------------------------------------------------------------------
