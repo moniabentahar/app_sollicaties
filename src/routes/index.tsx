@@ -706,6 +706,65 @@ function ConnectBackend() {
   );
 }
 
+function AboutMe() {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState("");
+  const [loaded, setLoaded] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    api
+      .profile()
+      .then((p) => setText(p.about ?? ""))
+      .catch(() => undefined)
+      .finally(() => setLoaded(true));
+  }, []);
+
+  async function save() {
+    try {
+      await api.saveAbout(text);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch {
+      toast.error("Kon 'Over mij' niet opslaan.");
+    }
+  }
+
+  return (
+    <div className="border-t border-border bg-muted/30 px-6 py-2.5 text-xs">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="font-medium text-muted-foreground hover:text-foreground"
+      >
+        🧬 Over mij — testprofiel & aanbevelingen{loaded && text ? " — ingevuld ✓" : ""}
+      </button>
+      {open && (
+        <div className="mt-2 flex flex-col gap-2">
+          <p className="text-[11px] text-muted-foreground">
+            Plak hier je persoonlijkheidsprofiel (uit testen), je aanbevelingen en wat anderen over je
+            zeggen. Het AI-advies per vacature houdt hier dan rekening mee — niet alleen je ervaring,
+            maar ook wie je bent.
+          </p>
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            rows={7}
+            placeholder="Bv. resultaten van je testprofiel, LinkedIn-aanbevelingen, citaten van collega's of leidinggevenden…"
+            className="w-full resize-y rounded-md border border-input bg-card px-3 py-2 text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-ring/40"
+          />
+          <div className="flex items-center gap-2">
+            <Button size="sm" onClick={save} disabled={!loaded}>
+              Opslaan
+            </Button>
+            {saved && <span className="font-medium text-accent">Opgeslagen ✓</span>}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ScanHero({
   scanning,
   uploading,
@@ -808,6 +867,7 @@ function ScanHero({
         </div>
       </div>
 
+      <AboutMe />
       <ConnectBackend />
 
       {scanning && !isPreview && (

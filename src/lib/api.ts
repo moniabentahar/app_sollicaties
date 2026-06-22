@@ -11,6 +11,7 @@ export interface Profile {
   target_titles: string[]
   core_skills: string[]
   languages: string[]
+  about?: string
   has_profile?: boolean
 }
 
@@ -149,6 +150,15 @@ export const api = {
     if (!res.ok) throw new Error("could not generate cv")
     const data = (await res.json()) as { cv: string }
     return data.cv
+  },
+
+  async saveAbout(about: string): Promise<void> {
+    const res = await fetch(apiUrl("/api/profile/about"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...TUNNEL_HEADERS },
+      body: JSON.stringify({ about }),
+    })
+    if (!res.ok) throw new Error("could not save about")
   },
 
   async analyzeFit(job: Listing): Promise<FitAdvice> {

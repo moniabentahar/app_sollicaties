@@ -23,6 +23,7 @@ EMPTY_PROFILE: dict = {
     "email": "",
     "phone": "",
     "summary": "",
+    "about": "",
     "target_titles": [],
     "core_skills": [],
     "languages": [],

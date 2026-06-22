@@ -21,7 +21,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from src.cv_extract import extract_and_save
+from src.cv_extract import extract_and_save, save_active_profile
 from src.profile import load_profile
 
 _BRUSSELS = ZoneInfo("Europe/Brussels")
@@ -358,6 +358,9 @@ def _analyze_fit(job: dict) -> dict:
         f"Kerncompetenties: {', '.join(profile.get('core_skills', [])[:15])}\n"
         f"Talen: {', '.join(profile.get('languages', []))}"
     )
+    about = (profile.get("about") or "").strip()
+    if about:
+        prof += f"\n\nOver de kandidate (persoonlijkheidsprofiel uit testen, aanbevelingen, wat anderen over haar zeggen):\n{about[:2500]}"
     jobtxt = (
         f"Functie: {job.get('title', '')}\n"
         f"Bedrijf: {job.get('company', '')}\n"
@@ -376,7 +379,9 @@ def _analyze_fit(job: dict) -> dict:
                 "content": (
                     "Je bent een nuchtere, eerlijke loopbaanadviseur. Beoordeel kort en bondig in het "
                     "Nederlands hoe goed deze vacature past bij deze kandidate, op basis van haar CV/profiel. "
-                    "Noem concreet welke ervaring relevant is (of net ontbreekt).\n\n"
+                    "Noem concreet welke ervaring relevant is (of net ontbreekt). Als er een "
+                    "persoonlijkheidsprofiel/aanbevelingen zijn, weeg ook mee of de rol past bij wie ze is "
+                    "en hoe ze werkt.\n\n"
                     f"KANDIDATE:\n{prof}\n\nVACATURE:\n{jobtxt}"
                 ),
             }],
@@ -410,8 +415,19 @@ def get_profile() -> dict:
         "target_titles": sorted(p.get("target_titles", [])),
         "core_skills": sorted(p.get("core_skills", [])),
         "languages": sorted(p.get("languages", [])),
+        "about": p.get("about", ""),
         "has_profile": bool(p.get("name") or p.get("target_titles") or p.get("core_skills")),
     }
+
+
+@app.post("/api/profile/about")
+async def save_about(request: Request) -> dict:
+    """Save free-text 'about me' context (test profile, recommendations, testimonials)."""
+    body = await request.json()
+    profile = load_profile()
+    profile["about"] = (body.get("about") or "").strip()
+    save_active_profile(profile)
+    return {"ok": True, "about": profile["about"]}
 
 
 @app.post("/api/profile/upload")
