@@ -240,6 +240,22 @@ def _template_cover_letter(job: dict) -> str:
 
 _LETTER_MODEL = os.getenv("SOLLICITATIES_LETTER_MODEL", "claude-haiku-4-5")
 _LANG_NAME = {"nl": "het Nederlands", "fr": "le français", "en": "English"}
+_MONTHS = {
+    "nl": ["januari", "februari", "maart", "april", "mei", "juni", "juli", "augustus",
+           "september", "oktober", "november", "december"],
+    "fr": ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août",
+           "septembre", "octobre", "novembre", "décembre"],
+    "en": ["January", "February", "March", "April", "May", "June", "July", "August",
+           "September", "October", "November", "December"],
+}
+
+
+def _today_str(lang: str) -> str:
+    now = datetime.now()
+    m = _MONTHS.get(lang, _MONTHS["nl"])
+    if lang == "en":
+        return f"{m[now.month - 1]} {now.day}, {now.year}"
+    return f"{now.day} {m[now.month - 1]} {now.year}"
 
 
 def _llm_cover_letter(job: dict) -> str:
@@ -283,8 +299,9 @@ def _llm_cover_letter(job: dict) -> str:
                     f"voor deze kandidate. Gebruik haar relevante ervaring én haar persoonlijkheid/aanbevelingen "
                     f"(verweef subtiel wat anderen over haar zeggen) zodat de brief persoonlijk en overtuigend is. "
                     f"Beknopt (±250-300 woorden), authentiek, niet overdreven of clichématig. Begin met deze "
-                    f"contactgegevens als kop, gevolgd door de datum van vandaag, de bedrijfsnaam, en een "
-                    f"onderwerpregel; eindig met een groet en haar naam. Geef alleen de brief terug, geen uitleg.\n\n"
+                    f"contactgegevens als kop, gevolgd door exact deze datum: {_today_str(lang)}, dan de "
+                    f"bedrijfsnaam, en een onderwerpregel; eindig met een groet en haar naam. Verzin geen andere "
+                    f"datum. Geef alleen de brief terug, geen uitleg.\n\n"
                     f"CONTACTKOP (letterlijk bovenaan gebruiken):\n{header}\n\n"
                     f"KANDIDATE:\n{ctx}\n\nVACATURE:\n{jobtxt}"
                 ),
