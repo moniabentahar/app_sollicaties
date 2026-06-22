@@ -161,6 +161,23 @@ export const api = {
     if (!res.ok) throw new Error("could not save about")
   },
 
+  async uploadAbout(file: File): Promise<string> {
+    const form = new FormData()
+    form.append("file", file)
+    const res = await fetch(apiUrl("/api/profile/about/upload"), { method: "POST", body: form, headers: TUNNEL_HEADERS })
+    if (!res.ok) {
+      let detail = "kon het bestand niet lezen"
+      try {
+        detail = ((await res.json()) as { detail?: string }).detail ?? detail
+      } catch {
+        /* keep default */
+      }
+      throw new Error(detail)
+    }
+    const data = (await res.json()) as { text: string }
+    return data.text
+  },
+
   async analyzeFit(job: Listing): Promise<FitAdvice> {
     const res = await fetch(apiUrl("/api/analyze"), {
       method: "POST",

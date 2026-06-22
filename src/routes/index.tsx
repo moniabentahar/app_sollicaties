@@ -711,6 +711,8 @@ function AboutMe() {
   const [text, setText] = useState("");
   const [loaded, setLoaded] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     api
@@ -728,6 +730,20 @@ function AboutMe() {
     } catch {
       toast.error("Kon 'Over mij' niet opslaan.");
     }
+  }
+
+  async function handleFile(file: File | undefined) {
+    if (!file) return;
+    setBusy(true);
+    try {
+      const extracted = await api.uploadAbout(file);
+      setText((prev) => (prev.trim() ? `${prev.trim()}\n\n${extracted}` : extracted));
+      toast.success("Bestand toegevoegd — controleer de tekst en klik Opslaan.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Kon het bestand niet lezen.");
+    }
+    setBusy(false);
+    if (fileRef.current) fileRef.current.value = "";
   }
 
   return (
@@ -753,9 +769,19 @@ function AboutMe() {
             placeholder="Bv. resultaten van je testprofiel, LinkedIn-aanbevelingen, citaten van collega's of leidinggevenden…"
             className="w-full resize-y rounded-md border border-input bg-card px-3 py-2 text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-ring/40"
           />
-          <div className="flex items-center gap-2">
-            <Button size="sm" onClick={save} disabled={!loaded}>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button size="sm" onClick={save} disabled={!loaded || busy}>
               Opslaan
+            </Button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".pdf,.txt,.md"
+              className="hidden"
+              onChange={(e) => handleFile(e.target.files?.[0])}
+            />
+            <Button size="sm" variant="outline" onClick={() => fileRef.current?.click()} disabled={busy}>
+              {busy ? "Inlezen…" : "📎 Bestand toevoegen (PDF)"}
             </Button>
             {saved && <span className="font-medium text-accent">Opgeslagen ✓</span>}
           </div>

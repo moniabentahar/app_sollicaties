@@ -430,6 +430,47 @@ async def save_about(request: Request) -> dict:
     return {"ok": True, "about": profile["about"]}
 
 
+def _extract_about_from_pdf(pdf_bytes: bytes, api_key: str) -> str:
+    """Read an attachment (test profile / recommendations PDF) into plain text."""
+    import base64
+
+    from anthropic import Anthropic
+
+    b64 = base64.standard_b64encode(pdf_bytes).decode("ascii")
+    msg = Anthropic(api_key=api_key).messages.create(
+        model=os.getenv("SOLLICITATIES_CV_MODEL", "claude-sonnet-4-6"),
+        max_tokens=2500,
+        messages=[{
+            "role": "user",
+            "content": [
+                {"type": "document", "source": {"type": "base64", "media_type": "application/pdf", "data": b64}},
+                {"type": "text", "text": (
+                    "Dit document beschrijft de kandidate (bv. een persoonlijkheidsprofiel uit testen, "
+                    "aanbevelingen of getuigenissen). Geef de relevante inhoud terug als beknopte platte "
+                    "tekst in het Nederlands: wie ze is, haar sterktes, werkstijl, en wat anderen over "
+                    "haar zeggen. Geen opmaak of inleiding, enkel de kern."
+                )},
+            ],
+        }],
+    )
+    return "\n".join(b.text for b in msg.content if getattr(b, "type", None) == "text").strip()
+
+
+@app.post("/api/profile/about/upload")
+async def upload_about(file: UploadFile = File(...)) -> dict:
+    """Read an attachment (PDF or text) and return its content to add to 'about me'."""
+    raw = await file.read()
+    name = (file.filename or "").lower()
+    if name.endswith((".txt", ".md")):
+        return {"text": raw.decode("utf-8", errors="ignore").strip()}
+    if name.endswith(".pdf"):
+        api_key = _load_api_key()
+        if not api_key:
+            raise HTTPException(400, "Geen API-sleutel ingesteld.")
+        return {"text": await asyncio.to_thread(_extract_about_from_pdf, raw, api_key)}
+    raise HTTPException(400, "Alleen PDF- of tekstbestanden worden ondersteund.")
+
+
 @app.post("/api/profile/upload")
 async def upload_cv(file: UploadFile = File(...)) -> dict:
     """Upload a CV (PDF); Claude extracts a job-search profile that becomes active."""
