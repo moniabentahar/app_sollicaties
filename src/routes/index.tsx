@@ -737,19 +737,22 @@ function AboutMe() {
     setBusy(true);
     try {
       let extracted: string;
-      if (/\.(txt|md)$/i.test(file.name)) {
-        // Plain text: read entirely in the browser, no upload needed.
-        extracted = await file.text();
-      } else {
-        // PDF: read as base64 in the browser and send as JSON (no multipart),
-        // so it works even in the Lovable editor where uploads are blocked.
-        const dataUrl: string = await new Promise((resolve, reject) => {
-          const r = new FileReader();
-          r.onload = () => resolve(String(r.result));
-          r.onerror = () => reject(new Error("kon het bestand niet lezen"));
-          r.readAsDataURL(file);
-        });
-        extracted = await api.uploadAboutBase64(file.name, dataUrl);
+      try {
+        // Normal multipart upload (this works in Lovable).
+        extracted = await api.uploadAbout(file);
+      } catch {
+        // Fallback: read in the browser + send base64 (for sandboxes that block multipart).
+        if (/\.(txt|md)$/i.test(file.name)) {
+          extracted = await file.text();
+        } else {
+          const dataUrl: string = await new Promise((resolve, reject) => {
+            const r = new FileReader();
+            r.onload = () => resolve(String(r.result));
+            r.onerror = () => reject(new Error("kon het bestand niet lezen"));
+            r.readAsDataURL(file);
+          });
+          extracted = await api.uploadAboutBase64(file.name, dataUrl);
+        }
       }
       setText((prev) => (prev.trim() ? `${prev.trim()}\n\n${extracted}` : extracted));
       toast.success("Bestand toegevoegd — controleer de tekst en klik Opslaan.");
