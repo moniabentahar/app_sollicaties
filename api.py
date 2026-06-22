@@ -553,6 +553,31 @@ async def upload_about(file: UploadFile = File(...)) -> dict:
     raise HTTPException(400, "Alleen PDF- of tekstbestanden worden ondersteund.")
 
 
+@app.post("/api/profile/about/upload-base64")
+async def upload_about_base64(request: Request) -> dict:
+    """File content sent as base64 JSON (works in sandboxes that block multipart
+    uploads, e.g. the Lovable editor). Returns the extracted text."""
+    import base64
+
+    body = await request.json()
+    name = (body.get("filename") or "").lower()
+    data = body.get("data") or ""
+    if data.startswith("data:") and "," in data:
+        data = data.split(",", 1)[1]
+    try:
+        raw = base64.b64decode(data)
+    except Exception:
+        raise HTTPException(400, "Kon het bestand niet lezen.")
+    if name.endswith((".txt", ".md")):
+        return {"text": raw.decode("utf-8", errors="ignore").strip()}
+    if name.endswith(".pdf"):
+        api_key = _load_api_key()
+        if not api_key:
+            raise HTTPException(400, "Geen API-sleutel ingesteld.")
+        return {"text": await asyncio.to_thread(_extract_about_from_pdf, raw, api_key)}
+    raise HTTPException(400, "Alleen PDF- of tekstbestanden worden ondersteund.")
+
+
 @app.post("/api/profile/upload")
 async def upload_cv(file: UploadFile = File(...)) -> dict:
     """Upload a CV (PDF); Claude extracts a job-search profile that becomes active."""

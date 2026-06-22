@@ -161,10 +161,14 @@ export const api = {
     if (!res.ok) throw new Error("could not save about")
   },
 
-  async uploadAbout(file: File): Promise<string> {
-    const form = new FormData()
-    form.append("file", file)
-    const res = await fetch(apiUrl("/api/profile/about/upload"), { method: "POST", body: form, headers: TUNNEL_HEADERS })
+  // Sends the file content as base64 JSON (no multipart upload) so it also works
+  // in sandboxed environments like the Lovable editor that block file uploads.
+  async uploadAboutBase64(filename: string, data: string): Promise<string> {
+    const res = await fetch(apiUrl("/api/profile/about/upload-base64"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...TUNNEL_HEADERS },
+      body: JSON.stringify({ filename, data }),
+    })
     if (!res.ok) {
       let detail = "kon het bestand niet lezen"
       try {
@@ -174,8 +178,8 @@ export const api = {
       }
       throw new Error(detail)
     }
-    const data = (await res.json()) as { text: string }
-    return data.text
+    const result = (await res.json()) as { text: string }
+    return result.text
   },
 
   async analyzeFit(job: Listing): Promise<FitAdvice> {
