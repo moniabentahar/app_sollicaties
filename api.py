@@ -142,7 +142,7 @@ def _candidate_block(profile: dict) -> str:
     return "\n".join(lines)
 
 
-def _build_cover_letter(job: dict) -> str:
+def _template_cover_letter(job: dict) -> str:
     profile = load_profile()
     if not (profile.get("name") or profile.get("core_skills")):
         return "Upload a CV first to generate a personalised cover letter."
@@ -236,6 +236,71 @@ def _build_cover_letter(job: dict) -> str:
         f"Met vriendelijke groeten,\n\n"
         f"{candidate_name}"
     )
+
+
+_LETTER_MODEL = os.getenv("SOLLICITATIES_LETTER_MODEL", "claude-haiku-4-5")
+_LANG_NAME = {"nl": "het Nederlands", "fr": "le français", "en": "English"}
+
+
+def _llm_cover_letter(job: dict) -> str:
+    """A tailored cover letter that weaves in the candidate's experience AND her
+    personality / 'about me' (test profile, recommendations). Falls back to the
+    template on any error so the user is never left without a letter."""
+    profile = load_profile()
+    api_key = _load_api_key()
+    if not api_key:
+        return _template_cover_letter(job)
+
+    lang = _detect_letter_language(job)
+    header = _candidate_block(profile)
+    exp = "; ".join(
+        f"{e.get('role', '')} @ {e.get('company', '')}" for e in profile.get("experience", [])[:6]
+    )
+    about = (profile.get("about") or "").strip()
+    ctx = (
+        f"Naam: {profile.get('name')}\n"
+        f"Samenvatting: {profile.get('summary', '')}\n"
+        f"Ervaring: {exp}\n"
+        f"Kerncompetenties: {', '.join(profile.get('core_skills', [])[:15])}\n"
+        f"Talen: {', '.join(profile.get('languages', []))}"
+    )
+    if about:
+        ctx += f"\n\nPersoonlijkheid / aanbevelingen / wat anderen over haar zeggen:\n{about[:2500]}"
+    jobtxt = (
+        f"Functie: {job.get('title', '')}\nBedrijf: {job.get('company', '')}\n"
+        f"Locatie: {job.get('location', '')}\nBeschrijving: {job.get('description_summary', '')}"
+    )
+    try:
+        from anthropic import Anthropic
+
+        msg = Anthropic(api_key=api_key).messages.create(
+            model=_LETTER_MODEL,
+            max_tokens=1200,
+            messages=[{
+                "role": "user",
+                "content": (
+                    f"Schrijf een professionele, oprechte motivatiebrief in {_LANG_NAME.get(lang, 'het Nederlands')} "
+                    f"voor deze kandidate. Gebruik haar relevante ervaring én haar persoonlijkheid/aanbevelingen "
+                    f"(verweef subtiel wat anderen over haar zeggen) zodat de brief persoonlijk en overtuigend is. "
+                    f"Beknopt (±250-300 woorden), authentiek, niet overdreven of clichématig. Begin met deze "
+                    f"contactgegevens als kop, gevolgd door de datum van vandaag, de bedrijfsnaam, en een "
+                    f"onderwerpregel; eindig met een groet en haar naam. Geef alleen de brief terug, geen uitleg.\n\n"
+                    f"CONTACTKOP (letterlijk bovenaan gebruiken):\n{header}\n\n"
+                    f"KANDIDATE:\n{ctx}\n\nVACATURE:\n{jobtxt}"
+                ),
+            }],
+        )
+        text = "\n".join(b.text for b in msg.content if getattr(b, "type", None) == "text").strip()
+        return text or _template_cover_letter(job)
+    except Exception:
+        return _template_cover_letter(job)
+
+
+def _build_cover_letter(job: dict) -> str:
+    profile = load_profile()
+    if not (profile.get("name") or profile.get("core_skills")):
+        return "Upload eerst een CV om een motivatiebrief te genereren."
+    return _llm_cover_letter(job)
 
 
 def _build_cv(job: dict) -> str:
