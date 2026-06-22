@@ -150,6 +150,22 @@ export const api = {
     const data = (await res.json()) as { cv: string }
     return data.cv
   },
+
+  async analyzeFit(job: Listing): Promise<FitAdvice> {
+    const res = await fetch(apiUrl("/api/analyze"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...TUNNEL_HEADERS },
+      body: JSON.stringify(job),
+    })
+    if (!res.ok) throw new Error("could not analyze")
+    return res.json() as Promise<FitAdvice>
+  },
+}
+
+export interface FitAdvice {
+  fit: "sterk" | "overweeg" | "zwak" | ""
+  analysis: string
+  recommendation: string
 }
 
 // ── Presentation helpers ──────────────────────────────────────────────

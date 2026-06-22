@@ -310,6 +310,90 @@ def _build_cv(job: dict) -> str:
     return "\n\n".join(parts) + "\n"
 
 
+_ANALYZE_MODEL = os.getenv("SOLLICITATIES_ANALYZE_MODEL", "claude-haiku-4-5")
+
+_ANALYZE_TOOL = {
+    "name": "record_advice",
+    "description": "Record a short fit analysis and recommendation for this vacancy.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "fit": {
+                "type": "string",
+                "enum": ["sterk", "overweeg", "zwak"],
+                "description": "Overall fit of this vacancy to the candidate.",
+            },
+            "analysis": {
+                "type": "string",
+                "description": "2-3 concise Dutch sentences: why this role does or doesn't fit her background.",
+            },
+            "recommendation": {
+                "type": "string",
+                "description": "One concise Dutch sentence with the concrete recommendation/next step.",
+            },
+        },
+        "required": ["fit", "analysis", "recommendation"],
+    },
+}
+
+
+def _analyze_fit(job: dict) -> dict:
+    """Short, honest fit analysis of a vacancy against the candidate's CV profile."""
+    profile = load_profile()
+    if not (profile.get("name") or profile.get("experience")):
+        return {"fit": "", "analysis": "Upload eerst een CV voor een advies.", "recommendation": ""}
+    api_key = _load_api_key()
+    if not api_key:
+        return {"fit": "", "analysis": "Geen API-sleutel ingesteld.", "recommendation": ""}
+
+    from anthropic import Anthropic
+
+    exp = "; ".join(
+        f"{e.get('role', '')} @ {e.get('company', '')}" for e in profile.get("experience", [])[:6]
+    )
+    prof = (
+        f"Naam: {profile.get('name')}\n"
+        f"Samenvatting: {profile.get('summary', '')}\n"
+        f"Ervaring: {exp}\n"
+        f"Kerncompetenties: {', '.join(profile.get('core_skills', [])[:15])}\n"
+        f"Talen: {', '.join(profile.get('languages', []))}"
+    )
+    jobtxt = (
+        f"Functie: {job.get('title', '')}\n"
+        f"Bedrijf: {job.get('company', '')}\n"
+        f"Locatie: {job.get('location', '')}\n"
+        f"Beschrijving: {job.get('description_summary', '')}\n"
+        f"Skills: {', '.join(_normalise_skills(job.get('skills', [])))}"
+    )
+    try:
+        msg = Anthropic(api_key=api_key).messages.create(
+            model=_ANALYZE_MODEL,
+            max_tokens=600,
+            tools=[_ANALYZE_TOOL],
+            tool_choice={"type": "tool", "name": "record_advice"},
+            messages=[{
+                "role": "user",
+                "content": (
+                    "Je bent een nuchtere, eerlijke loopbaanadviseur. Beoordeel kort en bondig in het "
+                    "Nederlands hoe goed deze vacature past bij deze kandidate, op basis van haar CV/profiel. "
+                    "Noem concreet welke ervaring relevant is (of net ontbreekt).\n\n"
+                    f"KANDIDATE:\n{prof}\n\nVACATURE:\n{jobtxt}"
+                ),
+            }],
+        )
+        for block in msg.content:
+            if getattr(block, "type", None) == "tool_use":
+                d = block.input if isinstance(block.input, dict) else {}
+                return {
+                    "fit": d.get("fit", ""),
+                    "analysis": d.get("analysis", ""),
+                    "recommendation": d.get("recommendation", ""),
+                }
+    except Exception as exc:
+        return {"fit": "", "analysis": f"Advies niet beschikbaar: {str(exc)[:90]}", "recommendation": ""}
+    return {"fit": "", "analysis": "Geen advies gegenereerd.", "recommendation": ""}
+
+
 # ---------------------------------------------------------------------------
 # Profile
 # ---------------------------------------------------------------------------
@@ -525,6 +609,12 @@ async def generate_letter(request: Request) -> dict:
 async def generate_cv(request: Request) -> dict:
     job = await request.json()
     return {"cv": _build_cv(job)}
+
+
+@app.post("/api/analyze")
+async def analyze(request: Request) -> dict:
+    job = await request.json()
+    return await asyncio.to_thread(_analyze_fit, job)
 
 
 # ---------------------------------------------------------------------------
