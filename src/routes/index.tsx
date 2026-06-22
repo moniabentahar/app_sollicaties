@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Search, ExternalLink, CheckCircle2, Loader2, Calendar, MapPin, Building2, Upload } from "lucide-react";
+import { Search, ExternalLink, CheckCircle2, Loader2, Calendar, MapPin, Building2, Upload, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import demoData from "@/data/listings.json";
 
@@ -20,6 +20,7 @@ import {
   tierColor,
   tierLabel,
   type Application,
+  type FitAdvice,
   type Listing,
   type Profile,
   type Scan,
@@ -843,11 +844,31 @@ interface JobCardProps {
   onHide: () => void;
 }
 
+const FIT_META: Record<string, { label: string; color: string }> = {
+  sterk: { label: "Sterke match", color: "var(--tier-strong)" },
+  overweeg: { label: "Overweeg", color: "var(--tier-consider)" },
+  zwak: { label: "Zwakke match", color: "var(--tier-low)" },
+};
+
 function JobCard({ job, applied, hidden, onOpen, onApply, onToggleApplied, onHide }: JobCardProps) {
   const color = tierColor(job.tier);
   const posted = postedAgo(job.posted_date);
   const remoteLabel =
     job.remote && job.remote !== "unknown" ? REMOTE_LABEL[job.remote] ?? job.remote : null;
+  const [advice, setAdvice] = useState<FitAdvice | null>(null);
+  const [loadingAdvice, setLoadingAdvice] = useState(false);
+
+  async function getAdvice() {
+    if (loadingAdvice || advice) return;
+    setLoadingAdvice(true);
+    try {
+      setAdvice(await api.analyzeFit(job));
+    } catch {
+      setAdvice({ fit: "", analysis: "Advies kon niet worden gegenereerd. Probeer opnieuw.", recommendation: "" });
+    }
+    setLoadingAdvice(false);
+  }
+
   return (
     <article
       onClick={onOpen}
@@ -946,6 +967,17 @@ function JobCard({ job, applied, hidden, onOpen, onApply, onToggleApplied, onHid
             >
               {hidden ? "Terugzetten" : "Niet interessant"}
             </button>
+            <span className="text-border">·</span>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                getAdvice();
+              }}
+              className="inline-flex items-center gap-1 font-semibold text-accent hover:underline"
+            >
+              <Sparkles className="h-3 w-3" /> {loadingAdvice ? "Advies…" : "Advies"}
+            </button>
           </div>
         </div>
       </div>
@@ -970,6 +1002,36 @@ function JobCard({ job, applied, hidden, onOpen, onApply, onToggleApplied, onHid
             </span>
           )}
         </div>
+
+        {(loadingAdvice || advice) && (
+          <div className="mt-2.5 rounded-lg border border-border bg-muted/40 p-2.5 text-xs" onClick={(e) => e.stopPropagation()}>
+            {loadingAdvice ? (
+              <p className="flex items-center gap-2 text-muted-foreground">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Advies obv je CV genereren…
+              </p>
+            ) : (
+              advice && (
+                <>
+                  {advice.fit && FIT_META[advice.fit] && (
+                    <span
+                      className="mb-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+                      style={{
+                        background: `color-mix(in oklab, ${FIT_META[advice.fit].color} 14%, transparent)`,
+                        color: FIT_META[advice.fit].color,
+                      }}
+                    >
+                      {FIT_META[advice.fit].label}
+                    </span>
+                  )}
+                  <p className="leading-relaxed text-foreground">{advice.analysis}</p>
+                  {advice.recommendation && (
+                    <p className="mt-1 font-semibold text-foreground">→ {advice.recommendation}</p>
+                  )}
+                </>
+              )
+            )}
+          </div>
+        )}
       </div>
     </article>
   );
