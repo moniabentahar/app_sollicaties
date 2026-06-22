@@ -14,6 +14,9 @@ export default defineConfig({
   },
   vite: {
     server: {
+      // Allow the localtunnel host so the app can be served from the PC via the
+      // tunnel (dev-only setting; does not affect the production build).
+      allowedHosts: true,
       proxy: {
         "/api": {
           target: "http://localhost:8000",
