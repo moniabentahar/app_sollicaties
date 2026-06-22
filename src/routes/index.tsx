@@ -14,6 +14,7 @@ import {
   formatAppliedDate,
   formatNextScan,
   listingKey,
+  jobMatchKey,
   parseScanFileName,
   postedAgo,
   tierColor,
@@ -114,7 +115,7 @@ function App() {
 
   function toggleHidden(job: Listing) {
     setHidden((prev) => {
-      const key = listingKey(job);
+      const key = jobMatchKey(job);
       const next = new Set(prev);
       next.has(key) ? next.delete(key) : next.add(key);
       try {
@@ -265,19 +266,19 @@ function App() {
   }
 
   const appliedKeys = useMemo(
-    () => new Set(applications.map((a) => listingKey(a))),
+    () => new Set(applications.map((a) => jobMatchKey(a))),
     [applications],
   );
 
   const isApplied = useCallback(
-    (job: Listing) => appliedKeys.has(listingKey(job)),
+    (job: Listing) => appliedKeys.has(jobMatchKey(job)),
     [appliedKeys],
   );
 
   async function handleToggleApplied(job: Listing) {
     try {
       if (isApplied(job)) {
-        const match = applications.find((a) => listingKey(a) === listingKey(job));
+        const match = applications.find((a) => jobMatchKey(a) === jobMatchKey(job));
         if (match) await api.deleteApplication(match.job_id);
       } else {
         await api.saveApplication(job);
@@ -361,7 +362,7 @@ function App() {
     const q = query.trim().toLowerCase();
     return listings
       .filter((l) => {
-        if (!showHidden && hidden.has(listingKey(l))) return false;
+        if (!showHidden && hidden.has(jobMatchKey(l))) return false;
         if (filterTier !== "all" && l.tier !== filterTier) return false;
         if (filterSite !== "all" && l.source_site !== filterSite) return false;
         if (q) {
@@ -376,7 +377,7 @@ function App() {
   }, [listings, query, filterTier, filterSite, hidden, showHidden]);
 
   const hiddenInView = useMemo(
-    () => listings.filter((l) => hidden.has(listingKey(l))).length,
+    () => listings.filter((l) => hidden.has(jobMatchKey(l))).length,
     [listings, hidden],
   );
 
@@ -587,7 +588,7 @@ function App() {
                     key={listingKey(job)}
                     job={job}
                     applied={isApplied(job)}
-                    hidden={hidden.has(listingKey(job))}
+                    hidden={hidden.has(jobMatchKey(job))}
                     onOpen={() => openDetail(job)}
                     onApply={() => handleGenerateLetter(job)}
                     onToggleApplied={() => handleToggleApplied(job)}

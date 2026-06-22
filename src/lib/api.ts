@@ -173,6 +173,12 @@ export function listingKey(job: Listing): string {
   return `${job.title}|${job.company}|${job.apply_url ?? ""}`
 }
 
+/** Stable identity for matching the same job across re-scans. Ignores apply_url
+ * (which can differ per source/scan) so "applied" and "hidden" survive a rescan. */
+export function jobMatchKey(job: { title: string; company: string }): string {
+  return `${job.title.trim().toLowerCase()}|${job.company.trim().toLowerCase()}`
+}
+
 export function postedAgo(dateStr?: string): string | null {
   if (!dateStr || dateStr === "unknown" || dateStr === "") return null
   const d = new Date(dateStr)
