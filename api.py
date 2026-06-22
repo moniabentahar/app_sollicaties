@@ -398,6 +398,15 @@ def scan_status() -> dict:
     return {"running": _scan_running}
 
 
+# Must be declared before /api/scan/{filename}, otherwise "schedule" is treated
+# as a scan filename and 404s.
+@app.get("/api/scan/schedule")
+def get_scan_schedule() -> dict:
+    job = _scheduler.get_job("auto_scan")
+    next_run = job.next_run_time.isoformat() if job and job.next_run_time else None
+    return {"next_run": next_run, "days": ["dinsdag", "donderdag"], "hour": 8}
+
+
 @app.get("/api/scan/{filename}")
 def get_scan(filename: str) -> dict:
     path = DOCS_DIR / filename
@@ -469,13 +478,6 @@ async def _trigger_auto_scan() -> None:
     """Called by the scheduler on Tuesday and Friday at 08:00 Brussels time."""
     if not _scan_running:
         await _run_scan(site=None, min_score=1)
-
-
-@app.get("/api/scan/schedule")
-def get_scan_schedule() -> dict:
-    job = _scheduler.get_job("auto_scan")
-    next_run = job.next_run_time.isoformat() if job and job.next_run_time else None
-    return {"next_run": next_run, "days": ["dinsdag", "donderdag"], "hour": 8}
 
 
 # ---------------------------------------------------------------------------
