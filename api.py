@@ -407,11 +407,11 @@ _ANALYZE_TOOL = {
             },
             "analysis": {
                 "type": "string",
-                "description": "2-3 concise Dutch sentences: why this role does or doesn't fit her background.",
+                "description": "2-3 concise Dutch sentences addressed directly to the candidate (use 'je/jij'): why this role does or doesn't fit your background.",
             },
             "recommendation": {
                 "type": "string",
-                "description": "One concise Dutch sentence with the concrete recommendation/next step.",
+                "description": "One concise Dutch sentence of advice TO the candidate (use 'je/jij'), e.g. 'Solliciteer en speel je sponsoring-ervaring uit' — never advice to the employer.",
             },
         },
         "required": ["fit", "analysis", "recommendation"],
@@ -467,11 +467,13 @@ def _analyze_fit(job: dict) -> dict:
             messages=[{
                 "role": "user",
                 "content": (
-                    "Je bent een nuchtere, eerlijke loopbaanadviseur. Beoordeel kort en bondig in het "
-                    "Nederlands hoe goed deze vacature past bij deze kandidate, op basis van haar CV/profiel. "
-                    "Noem concreet welke ervaring relevant is (of net ontbreekt). Als er een "
-                    "persoonlijkheidsprofiel/aanbevelingen zijn, weeg ook mee of de rol past bij wie ze is "
-                    "en hoe ze werkt.\n\n"
+                    "Je bent de persoonlijke loopbaanadviseur van de kandidate (Monia). Spreek HAAR "
+                    "rechtstreeks aan met 'je/jij' — je adviseert HAAR, niet het bedrijf. Beoordeel kort en "
+                    "bondig in het Nederlands of deze vacature bij jou past en of je zou moeten solliciteren. "
+                    "Zeg concreet welke van je ervaringen je moet uitspelen (of wat ontbreekt). Als er een "
+                    "persoonlijkheidsprofiel/aanbevelingen zijn, weeg ook mee of de rol past bij wie je bent "
+                    "en hoe je werkt. Schrijf nooit advies aan de werkgever (dus niet 'nodig Monia uit', maar "
+                    "'solliciteer / benadruk je…').\n\n"
                     + align
                     + f"KANDIDATE:\n{prof}\n\nVACATURE:\n{jobtxt}"
                 ),
