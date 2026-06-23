@@ -443,12 +443,20 @@ def _analyze_fit(job: dict) -> dict:
     about = (profile.get("about") or "").strip()
     if about:
         prof += f"\n\nOver de kandidate (persoonlijkheidsprofiel uit testen, aanbevelingen, wat anderen over haar zeggen):\n{about[:2500]}"
+    tier_map = {"strong": "sterk", "consider": "overweeg", "low": "zwak"}
+    prescore = tier_map.get(str(job.get("tier", "")).lower(), "")
     jobtxt = (
         f"Functie: {job.get('title', '')}\n"
         f"Bedrijf: {job.get('company', '')}\n"
         f"Locatie: {job.get('location', '')}\n"
         f"Beschrijving: {job.get('description_summary', '')}\n"
         f"Skills: {', '.join(_normalise_skills(job.get('skills', [])))}"
+    )
+    align = (
+        f"De snelle voorbeoordeling rangschikte deze vacature als '{prescore}'. Neem dat als "
+        f"vertrekpunt voor je 'fit'-oordeel en houd het aan, tenzij haar profiel een duidelijke "
+        f"reden geeft om af te wijken — leg een afwijking dan kort uit.\n\n"
+        if prescore else ""
     )
     try:
         msg = Anthropic(api_key=api_key).messages.create(
@@ -464,7 +472,8 @@ def _analyze_fit(job: dict) -> dict:
                     "Noem concreet welke ervaring relevant is (of net ontbreekt). Als er een "
                     "persoonlijkheidsprofiel/aanbevelingen zijn, weeg ook mee of de rol past bij wie ze is "
                     "en hoe ze werkt.\n\n"
-                    f"KANDIDATE:\n{prof}\n\nVACATURE:\n{jobtxt}"
+                    + align
+                    + f"KANDIDATE:\n{prof}\n\nVACATURE:\n{jobtxt}"
                 ),
             }],
         )
