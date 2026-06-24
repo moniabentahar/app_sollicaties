@@ -64,7 +64,7 @@ function fromStore(key: string): string {
 // Backend location. A value set in the in-app "Verbind backend" form (saved in
 // the browser) wins over the build-time env and the default — so the app can be
 // pointed at your own PC backend via a tunnel URL without any rebuild.
-const DEFAULT_BACKEND = "https://monia-sollicitaties2026.loca.lt"
+const DEFAULT_BACKEND = "https://moniabentahar-jobscan2026.loca.lt"
 const API_BASE = (fromStore("apiBaseUrl") || (import.meta.env.VITE_API_BASE_URL ?? DEFAULT_BACKEND)).replace(/\/+$/, "")
 
 // localtunnel serves a reminder page unless this header is present; harmless elsewhere.
