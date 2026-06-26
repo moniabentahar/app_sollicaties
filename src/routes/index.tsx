@@ -996,6 +996,11 @@ function JobCard({ job, applied, hidden, onOpen, onApply, onToggleApplied, onHid
             >
               {tierLabel(job.tier)}
             </span>
+            {job.is_new && (
+              <span className="rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+                Nieuw
+              </span>
+            )}
             {applied && (
               <span className="inline-flex items-center gap-1 rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent">
                 <CheckCircle2 className="h-3 w-3" /> Gesolliciteerd

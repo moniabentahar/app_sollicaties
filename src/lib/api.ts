@@ -30,6 +30,7 @@ export interface Listing {
   description_summary?: string
   posted_date?: string
   experience_level?: string
+  is_new?: boolean
 }
 
 export interface Application extends Listing {

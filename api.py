@@ -632,6 +632,41 @@ def list_scans() -> list[dict]:
     return [{"name": f.name, "stem": f.stem} for f in files]
 
 
+_SEEN_DB = Path("docs/seen_jobs.json")
+_NEW_DAYS = 7
+
+
+def _mark_and_flag_new(listings: list[dict]) -> None:
+    """Remember when each vacancy was first seen; flag those newer than _NEW_DAYS
+    as is_new=True. The flag disappears automatically after a week."""
+    seen: dict[str, str] = {}
+    if _SEEN_DB.exists():
+        try:
+            with open(_SEEN_DB, encoding="utf-8") as f:
+                seen = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            seen = {}
+    today = datetime.now().date()
+    # First run (empty registry): treat the whole current list as already-known so
+    # not everything shows up as "new". Only jobs added in later scans get flagged.
+    is_first_run = len(seen) == 0
+    changed = False
+    for listing in listings:
+        key = f"{listing.get('title', '').strip().lower()}|{listing.get('company', '').strip().lower()}"
+        if key not in seen:
+            seen[key] = "2000-01-01" if is_first_run else today.isoformat()
+            changed = True
+        try:
+            first = datetime.fromisoformat(seen[key]).date()
+            listing["is_new"] = (today - first).days < _NEW_DAYS
+        except ValueError:
+            listing["is_new"] = False
+    if changed:
+        _SEEN_DB.parent.mkdir(parents=True, exist_ok=True)
+        with open(_SEEN_DB, "w", encoding="utf-8") as f:
+            json.dump(seen, f, ensure_ascii=False, indent=2)
+
+
 @app.get("/api/scan/latest")
 def get_latest_scan() -> dict:
     DOCS_DIR.mkdir(parents=True, exist_ok=True)
@@ -649,6 +684,7 @@ def get_latest_scan() -> dict:
             row["score"] = int(row.get("score", 0))
             listings.append(row)
 
+    _mark_and_flag_new(listings)
     return {"file": latest.name, "listings": listings}
 
 
