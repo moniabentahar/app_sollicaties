@@ -972,6 +972,15 @@ function JobCard({ job, applied, hidden, onOpen, onApply, onToggleApplied, onHid
     setLoadingAdvice(false);
   }
 
+  // Once the AI advice is in, let the tier label follow it (the advice knows your
+  // real fit; the score is only a keyword pre-filter) so they never contradict.
+  const FIT_TO_TIER: Record<string, "strong" | "consider" | "low"> = {
+    sterk: "strong",
+    overweeg: "consider",
+    zwak: "low",
+  };
+  const shownTier = advice?.fit && FIT_TO_TIER[advice.fit] ? FIT_TO_TIER[advice.fit] : job.tier;
+
   return (
     <article
       onClick={onOpen}
@@ -992,9 +1001,12 @@ function JobCard({ job, applied, hidden, onOpen, onApply, onToggleApplied, onHid
             <h3 className="font-display text-base font-bold leading-tight">{job.title}</h3>
             <span
               className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
-              style={{ background: `color-mix(in oklab, ${color} 12%, transparent)`, color }}
+              style={{
+                background: `color-mix(in oklab, ${tierColor(shownTier)} 12%, transparent)`,
+                color: tierColor(shownTier),
+              }}
             >
-              {tierLabel(job.tier)}
+              {tierLabel(shownTier)}
             </span>
             {job.is_new && (
               <span className="rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
