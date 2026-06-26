@@ -75,7 +75,7 @@ APPLIED_DB = Path("docs/applied_jobs.json")
 SCAN_TOKEN = os.getenv("SCAN_TOKEN", "").strip()
 
 # Hard cap on a single scan run so a hanging site can't block scans forever.
-SCAN_TIMEOUT_SECONDS = int(os.getenv("SCAN_TIMEOUT_SECONDS", "300"))
+SCAN_TIMEOUT_SECONDS = int(os.getenv("SCAN_TIMEOUT_SECONDS", "900"))
 
 _scan_running = False
 
@@ -743,30 +743,39 @@ async def trigger_scan(
 async def _run_scan(site: str | None, min_score: int) -> None:
     global _scan_running
     _scan_running = True
-    proc = None
     try:
-        import sys
-        args = [sys.executable, "main.py", "run", "--min-score", str(min_score),
-                "--verbose"]
-        if site:
-            args += ["--site", site]
-        env = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"}
-        # Inherit stdout/stderr so the scan's per-site progress streams live into
-        # the Space logs (we can see exactly where it is / where it hangs).
-        proc = await asyncio.create_subprocess_exec(*args, env=env)
-        try:
-            rc = await asyncio.wait_for(proc.wait(), timeout=SCAN_TIMEOUT_SECONDS)
-            print(f"[scan] finished exit={rc}", flush=True)
-        except asyncio.TimeoutError:
-            # One hanging site must not block scans forever — kill and move on.
-            print(f"[scan] TIMEOUT after {SCAN_TIMEOUT_SECONDS}s — killing scan", flush=True)
-            try:
-                proc.kill()
-            except ProcessLookupError:
-                pass
-            await proc.wait()
+        # Run in a worker thread with a plain subprocess. We deliberately avoid
+        # asyncio.create_subprocess_exec: on Windows uvicorn's SelectorEventLoop
+        # raises NotImplementedError for subprocesses, which silently killed the
+        # scan the instant the button was pressed.
+        await asyncio.to_thread(_run_scan_blocking, site, min_score)
     finally:
         _scan_running = False
+
+
+def _run_scan_blocking(site: str | None, min_score: int) -> None:
+    import subprocess
+    import sys
+
+    args = [sys.executable, "main.py", "run", "--min-score", str(min_score), "--verbose"]
+    if site:
+        args += ["--site", site]
+    env = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"}
+    log_path = Path("docs/scan_run.log")
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(log_path, "w", encoding="utf-8") as log:
+        try:
+            proc = subprocess.Popen(args, env=env, stdout=log, stderr=subprocess.STDOUT)
+        except Exception as exc:  # spawning itself failed — record why
+            log.write(f"[scan] could not start: {exc!r}\n")
+            return
+        try:
+            rc = proc.wait(timeout=SCAN_TIMEOUT_SECONDS)
+            log.write(f"\n[scan] finished exit={rc}\n")
+        except subprocess.TimeoutExpired:
+            log.write(f"\n[scan] TIMEOUT after {SCAN_TIMEOUT_SECONDS}s — killing scan\n")
+            proc.kill()
+            proc.wait()
 
 
 async def _trigger_auto_scan() -> None:
