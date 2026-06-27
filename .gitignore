@@ -56,3 +56,6 @@ scripts/watchdog.ps1
 scripts/launch-hidden.vbs
 
 frontend/dist/
+bin/
+cf_tunnel.log
+cf_tunnel.log.out

@@ -62,21 +62,50 @@ function fromStore(key: string): string {
   return ""
 }
 
-// Backend location. A value set in the in-app "Verbind backend" form (saved in
-// the browser) wins over the build-time env and the default — so the app can be
-// pointed at your own PC backend via a tunnel URL without any rebuild.
-const DEFAULT_BACKEND = "https://moniabentahar-jobscan2026.loca.lt"
-const API_BASE = (fromStore("apiBaseUrl") || (import.meta.env.VITE_API_BASE_URL ?? DEFAULT_BACKEND)).replace(/\/+$/, "")
+// Backend location. The PC backend is reached through a Cloudflare quick tunnel
+// whose URL changes whenever it restarts (e.g. after a PC reboot). The watchdog
+// publishes the current URL to this public gist, so the app always discovers the
+// live backend automatically — no manual setup, ever. A value set in the in-app
+// "Backend instellen" form still wins (manual override), then the build-time env,
+// then the gist, then a last-resort default.
+const BACKEND_URL_SOURCE =
+  "https://gist.githubusercontent.com/moniabentahar/7684501d6354213b227c6bcbd84ea19d/raw/backend.txt"
+const DEFAULT_BACKEND = "https://talking-gen-districts-evidence.trycloudflare.com"
 
-// localtunnel serves a reminder page unless this header is present; harmless elsewhere.
+let _basePromise: Promise<string> | null = null
+
+async function resolveBase(): Promise<string> {
+  const override = fromStore("apiBaseUrl")
+  if (override) return override.replace(/\/+$/, "")
+  const envBase = import.meta.env.VITE_API_BASE_URL
+  if (envBase) return envBase.replace(/\/+$/, "")
+  try {
+    const res = await fetch(`${BACKEND_URL_SOURCE}?t=${Date.now()}`, { cache: "no-store" })
+    if (res.ok) {
+      const url = (await res.text()).trim()
+      if (url.startsWith("https://")) return url.replace(/\/+$/, "")
+    }
+  } catch {
+    /* network/CORS issue — fall back below */
+  }
+  return DEFAULT_BACKEND
+}
+
+function getBase(): Promise<string> {
+  if (!_basePromise) _basePromise = resolveBase()
+  return _basePromise
+}
+
+// Cloudflare tunnels serve no reminder page, but this header is harmless and keeps
+// the app working if the backend is ever reached through another tunnel.
 const TUNNEL_HEADERS: Record<string, string> = { "bypass-tunnel-reminder": "1" }
 
-function apiUrl(path: string): string {
-  return `${API_BASE}${path}`
+async function apiUrl(path: string): Promise<string> {
+  return `${await getBase()}${path}`
 }
 
 async function getJson<T>(path: string): Promise<T> {
-  const res = await fetch(apiUrl(path), { headers: TUNNEL_HEADERS })
+  const res = await fetch(await apiUrl(path), { headers: TUNNEL_HEADERS })
   if (!res.ok) throw new Error(`${res.status} ${res.statusText} — ${path}`)
   return res.json() as Promise<T>
 }
@@ -91,7 +120,7 @@ export const api = {
   async uploadCv(file: File): Promise<Profile> {
     const form = new FormData()
     form.append("file", file)
-    const res = await fetch(apiUrl("/api/profile/upload"), { method: "POST", body: form, headers: TUNNEL_HEADERS })
+    const res = await fetch(await apiUrl("/api/profile/upload"), { method: "POST", body: form, headers: TUNNEL_HEADERS })
     if (!res.ok) {
       let detail = "could not read the CV"
       try {
@@ -105,7 +134,7 @@ export const api = {
   },
 
   async runScan(): Promise<"started" | "already-running"> {
-    const res = await fetch(apiUrl("/api/scan/run"), { method: "POST", headers: TUNNEL_HEADERS })
+    const res = await fetch(await apiUrl("/api/scan/run"), { method: "POST", headers: TUNNEL_HEADERS })
     if (res.status === 409) return "already-running"
     if (!res.ok) throw new Error("scan failed to start")
     return "started"
@@ -117,7 +146,7 @@ export const api = {
 
   async saveApplication(job: Listing, letter?: string): Promise<{ ok: boolean; job_id: string }> {
     const body = letter ? { ...job, cover_letter: letter } : job
-    const res = await fetch(apiUrl("/api/applications"), {
+    const res = await fetch(await apiUrl("/api/applications"), {
       method: "POST",
       headers: { "Content-Type": "application/json", ...TUNNEL_HEADERS },
       body: JSON.stringify(body),
@@ -127,12 +156,12 @@ export const api = {
   },
 
   async deleteApplication(jobId: string): Promise<void> {
-    const res = await fetch(apiUrl(`/api/applications/${jobId}`), { method: "DELETE", headers: TUNNEL_HEADERS })
+    const res = await fetch(await apiUrl(`/api/applications/${jobId}`), { method: "DELETE", headers: TUNNEL_HEADERS })
     if (!res.ok) throw new Error("could not delete application")
   },
 
   async generateLetter(job: Listing): Promise<string> {
-    const res = await fetch(apiUrl("/api/generate-letter"), {
+    const res = await fetch(await apiUrl("/api/generate-letter"), {
       method: "POST",
       headers: { "Content-Type": "application/json", ...TUNNEL_HEADERS },
       body: JSON.stringify(job),
@@ -143,7 +172,7 @@ export const api = {
   },
 
   async generateCv(job: Listing): Promise<string> {
-    const res = await fetch(apiUrl("/api/generate-cv"), {
+    const res = await fetch(await apiUrl("/api/generate-cv"), {
       method: "POST",
       headers: { "Content-Type": "application/json", ...TUNNEL_HEADERS },
       body: JSON.stringify(job),
@@ -154,7 +183,7 @@ export const api = {
   },
 
   async saveAbout(about: string): Promise<void> {
-    const res = await fetch(apiUrl("/api/profile/about"), {
+    const res = await fetch(await apiUrl("/api/profile/about"), {
       method: "POST",
       headers: { "Content-Type": "application/json", ...TUNNEL_HEADERS },
       body: JSON.stringify({ about }),
@@ -165,7 +194,7 @@ export const api = {
   async uploadAbout(file: File): Promise<string> {
     const form = new FormData()
     form.append("file", file)
-    const res = await fetch(apiUrl("/api/profile/about/upload"), { method: "POST", body: form, headers: TUNNEL_HEADERS })
+    const res = await fetch(await apiUrl("/api/profile/about/upload"), { method: "POST", body: form, headers: TUNNEL_HEADERS })
     if (!res.ok) {
       let detail = "kon het bestand niet lezen"
       try {
@@ -181,7 +210,7 @@ export const api = {
 
   // Fallback for sandboxes that block multipart: send the file content as base64 JSON.
   async uploadAboutBase64(filename: string, data: string): Promise<string> {
-    const res = await fetch(apiUrl("/api/profile/about/upload-base64"), {
+    const res = await fetch(await apiUrl("/api/profile/about/upload-base64"), {
       method: "POST",
       headers: { "Content-Type": "application/json", ...TUNNEL_HEADERS },
       body: JSON.stringify({ filename, data }),
@@ -191,7 +220,7 @@ export const api = {
   },
 
   async analyzeFit(job: Listing): Promise<FitAdvice> {
-    const res = await fetch(apiUrl("/api/analyze"), {
+    const res = await fetch(await apiUrl("/api/analyze"), {
       method: "POST",
       headers: { "Content-Type": "application/json", ...TUNNEL_HEADERS },
       body: JSON.stringify(job),
