@@ -474,6 +474,10 @@ def _analyze_fit(job: dict) -> dict:
                     "persoonlijkheidsprofiel/aanbevelingen zijn, weeg ook mee of de rol past bij wie je bent "
                     "en hoe je werkt. Schrijf nooit advies aan de werkgever (dus niet 'nodig Monia uit', maar "
                     "'solliciteer / benadruk je…').\n\n"
+                    "Beoordeel je profiel BREED: je sponsoring- en partnership-ervaring is sterk, maar je bent "
+                    "óók marketingmanager, marketeer en communicatieprofessional geweest, in zowel B2C als B2B. "
+                    "Weeg die volledige marketing- en communicatiebreedte mee en verklein een vacature niet tot "
+                    "enkel sponsoring/partnership.\n\n"
                     + align
                     + f"KANDIDATE:\n{prof}\n\nVACATURE:\n{jobtxt}"
                 ),
