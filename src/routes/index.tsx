@@ -363,6 +363,9 @@ function App() {
     const q = query.trim().toLowerCase();
     return listings
       .filter((l) => {
+        // Hide clear non-matches (score < 3). Real marketing/comms roles always
+        // score ≥3 via the title-match bonus, so the relevant ones stay.
+        if ((Number(l.score) || 0) < 3) return false;
         if (!showHidden && hidden.has(jobMatchKey(l))) return false;
         if (filterTier !== "all" && l.tier !== filterTier) return false;
         if (filterSite !== "all" && l.source_site !== filterSite) return false;
