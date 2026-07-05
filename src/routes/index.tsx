@@ -372,9 +372,13 @@ function App() {
         }
         return true;
       })
-      // Best matches first, always — so the strong matches stay on top
-      // instead of "disappearing" when live scan results replace the demo.
-      .sort((a, b) => (Number(b.score) || 0) - (Number(a.score) || 0));
+      // New vacancies always on top; within each group the best matches first.
+      .sort((a, b) => {
+        const an = a.is_new ? 1 : 0;
+        const bn = b.is_new ? 1 : 0;
+        if (an !== bn) return bn - an;
+        return (Number(b.score) || 0) - (Number(a.score) || 0);
+      });
   }, [listings, query, filterTier, filterSite, hidden, showHidden]);
 
   const hiddenInView = useMemo(
@@ -954,7 +958,6 @@ const FIT_META: Record<string, { label: string; color: string }> = {
 };
 
 function JobCard({ job, applied, hidden, onOpen, onApply, onToggleApplied, onHide }: JobCardProps) {
-  const color = tierColor(job.tier);
   const posted = postedAgo(job.posted_date);
   const remoteLabel =
     job.remote && job.remote !== "unknown" ? REMOTE_LABEL[job.remote] ?? job.remote : null;
@@ -980,19 +983,26 @@ function JobCard({ job, applied, hidden, onOpen, onApply, onToggleApplied, onHid
     zwak: "low",
   };
   const shownTier = advice?.fit && FIT_TO_TIER[advice.fit] ? FIT_TO_TIER[advice.fit] : job.tier;
+  // Keep the score number in step with the (advice-aware) tier so a high keyword
+  // score never sits next to a "weak" verdict: low → ≤3, consider → 4, strong → ≥5.
+  const clampScoreToTier = (s: number, t: "strong" | "consider" | "low"): number =>
+    t === "low" ? Math.min(s, 3) : t === "consider" ? 4 : Math.max(s, 5);
+  const shownScore =
+    advice?.fit && FIT_TO_TIER[advice.fit] ? clampScoreToTier(job.score, FIT_TO_TIER[advice.fit]) : job.score;
+  const shownColor = tierColor(shownTier);
 
   return (
     <article
       onClick={onOpen}
       className="card-lift cursor-pointer rounded-2xl border border-border bg-card p-4 shadow-sm hover:shadow-md"
-      style={{ borderLeft: `4px solid ${color}` }}
+      style={{ borderLeft: `4px solid ${shownColor}` }}
     >
       <div className="flex flex-wrap items-start gap-3">
         <div
           className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-xl text-white"
-          style={{ background: color }}
+          style={{ background: shownColor }}
         >
-          <span className="font-display text-lg font-bold leading-none tabular-nums">{job.score}</span>
+          <span className="font-display text-lg font-bold leading-none tabular-nums">{shownScore}</span>
           <span className="text-[9px] uppercase tracking-wide opacity-80">score</span>
         </div>
 
