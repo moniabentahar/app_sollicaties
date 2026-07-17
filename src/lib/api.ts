@@ -75,7 +75,17 @@ const DEFAULT_BACKEND = "https://talking-gen-districts-evidence.trycloudflare.co
 let _basePromise: Promise<string> | null = null
 
 async function resolveBase(): Promise<string> {
-  const override = fromStore("apiBaseUrl")
+  let override = fromStore("apiBaseUrl")
+  // A stale manual override pointing at the old localtunnel host would shadow the
+  // auto-discovery forever (localtunnel is retired). Clear + ignore it so the gist wins.
+  if (override.includes("loca.lt")) {
+    try {
+      window.localStorage.removeItem("apiBaseUrl")
+    } catch {
+      /* ignore */
+    }
+    override = ""
+  }
   if (override) return override.replace(/\/+$/, "")
   const envBase = import.meta.env.VITE_API_BASE_URL
   if (envBase) return envBase.replace(/\/+$/, "")
