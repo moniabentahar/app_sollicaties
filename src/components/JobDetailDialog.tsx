@@ -147,11 +147,11 @@ export function JobDetailDialog({
             </a>
           )}
 
-          {/* AI fit-advies op basis van het CV */}
+          {/* AI fit-advies op basis van CV + "over mij" profiel */}
           <div className="rounded-lg border border-border bg-muted/30 p-3">
             <div className="mb-1.5 flex items-center justify-between gap-2">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Advies op basis van mijn CV
+                Advies op basis van mijn CV & profiel
               </p>
               {advice?.fit && FIT_META[advice.fit] && (
                 <span

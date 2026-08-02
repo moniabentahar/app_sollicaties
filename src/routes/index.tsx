@@ -1158,7 +1158,7 @@ function JobCard({ job, applied, hidden, onOpen, onApply, onToggleApplied, onHid
           <div className="mt-2.5 rounded-lg border border-border bg-muted/40 p-2.5 text-xs" onClick={(e) => e.stopPropagation()}>
             {loadingAdvice ? (
               <p className="flex items-center gap-2 text-muted-foreground">
-                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Advies obv je CV genereren…
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Advies obv je CV & profiel genereren…
               </p>
             ) : (
               advice && (
