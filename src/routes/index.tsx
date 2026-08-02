@@ -104,6 +104,7 @@ function App() {
   // Loaded after mount to stay SSR-safe (no hydration mismatch).
   const [hidden, setHidden] = useState<Set<string>>(new Set());
   const [showHidden, setShowHidden] = useState(false);
+  const [showLowScore, setShowLowScore] = useState(false);
 
   useEffect(() => {
     try {
@@ -363,9 +364,10 @@ function App() {
     const q = query.trim().toLowerCase();
     return listings
       .filter((l) => {
-        // Hide clear non-matches (score < 3). Real marketing/comms roles always
-        // score ≥3 via the title-match bonus, so the relevant ones stay.
-        if ((Number(l.score) || 0) < 3) return false;
+        // Hide clear non-matches (score < 3) by default. Real marketing/comms roles
+        // always score ≥3 via the title-match bonus, so the relevant ones stay.
+        // Bypassable via showLowScore so a specific job is never unreachable.
+        if (!showLowScore && (Number(l.score) || 0) < 3) return false;
         if (!showHidden && hidden.has(jobMatchKey(l))) return false;
         if (filterTier !== "all" && l.tier !== filterTier) return false;
         if (filterSite !== "all" && l.source_site !== filterSite) return false;
@@ -382,11 +384,16 @@ function App() {
         if (an !== bn) return bn - an;
         return (Number(b.score) || 0) - (Number(a.score) || 0);
       });
-  }, [listings, query, filterTier, filterSite, hidden, showHidden]);
+  }, [listings, query, filterTier, filterSite, hidden, showHidden, showLowScore]);
 
   const hiddenInView = useMemo(
     () => listings.filter((l) => hidden.has(jobMatchKey(l))).length,
     [listings, hidden],
+  );
+
+  const lowScoreInView = useMemo(
+    () => listings.filter((l) => (Number(l.score) || 0) < 3).length,
+    [listings],
   );
 
   return (
@@ -588,6 +595,17 @@ function App() {
                       {showHidden
                         ? "Verberg niet-interessante"
                         : `Toon ${hiddenInView} niet-interessante`}
+                    </button>
+                  )}
+                  {lowScoreInView > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowLowScore((v) => !v)}
+                      className="text-xs font-medium text-muted-foreground underline-offset-2 hover:underline"
+                    >
+                      {showLowScore
+                        ? "Verberg lage scores"
+                        : `Toon ${lowScoreInView} lage scores`}
                     </button>
                   )}
                 </div>
