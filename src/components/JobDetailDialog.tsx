@@ -127,8 +127,24 @@ export function JobDetailDialog({
             </div>
           )}
 
-          {job.description_summary && (
+          {job.description_summary ? (
             <p className="text-sm leading-relaxed text-muted-foreground">{job.description_summary}</p>
+          ) : (
+            <p className="text-sm italic leading-relaxed text-muted-foreground">
+              Geen samenvatting beschikbaar voor deze bron. Bekijk de volledige vacaturetekst via de link
+              hieronder.
+            </p>
+          )}
+
+          {job.apply_url && (
+            <a
+              href={job.apply_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-sm font-semibold text-accent hover:underline"
+            >
+              Bekijk volledige vacature <ExternalLink className="h-3.5 w-3.5" />
+            </a>
           )}
 
           {/* AI fit-advies op basis van het CV */}
