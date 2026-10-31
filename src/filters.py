@@ -57,6 +57,10 @@ _DOMAIN_TITLE_TERMS = frozenset({
 # (e.g. "content moderator" = trust & safety, not content marketing).
 _DOMAIN_EXCLUDE_TERMS = frozenset({"moderator", "moderation"})
 
+# Support-level titles: too junior for a senior candidate. Checked on the TITLE
+# only — a senior posting may mention "assistant" in its description.
+_JUNIOR_TITLE_TERMS = frozenset({"assistant", "assistent", "assistante", "assistente"})
+
 # Non-marketing roles are capped at this score (below the consider threshold of
 # 4) so they always rank — and display — as low, on any client.
 _NON_DOMAIN_SCORE_CAP = 3
@@ -101,7 +105,8 @@ def score_listing(listing: JobListing) -> ScoredListing:
     )
 
     # --- Exclusions (applied first so they can't be cancelled out) ---
-    if _has_word(blob, EXCLUDE_KEYWORDS):
+    is_junior = _has_word(blob, EXCLUDE_KEYWORDS) or _has_word(_norm(listing.title), _JUNIOR_TITLE_TERMS)
+    if is_junior:
         score += _PENALTY_JUNIOR
         flags.append("[!] junior/entry-level")
 
@@ -151,10 +156,15 @@ def score_listing(listing: JobListing) -> ScoredListing:
     # still shows it as low without any redeploy.
     if not is_domain:
         score = min(score, _NON_DOMAIN_SCORE_CAP)
+    # Junior/assistant roles are likewise never a match for a senior candidate.
+    if is_junior:
+        score = min(score, _NON_DOMAIN_SCORE_CAP)
 
     # --- Tier --- only marketing/sponsorship/partnership roles can be strong or
     # consider; everything else is low no matter how high the raw score was.
-    if is_domain and score >= _TIER_THRESHOLDS[TIER_STRONG]:
+    if is_junior:
+        tier = TIER_LOW
+    elif is_domain and score >= _TIER_THRESHOLDS[TIER_STRONG]:
         tier = TIER_STRONG
     elif is_domain and score >= _TIER_THRESHOLDS[TIER_CONSIDER]:
         tier = TIER_CONSIDER
