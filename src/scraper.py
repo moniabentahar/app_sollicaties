@@ -115,7 +115,7 @@ CATEGORY_MUST_HAVE = ["michaelpage", "roberthalf", "hays"]
 CATEGORY_SENIOR = ["robertwalters", "hudson"]
 CATEGORY_INTERIM = ["mindsandmore"]
 CATEGORY_OVERHEID = ["werkenvoor", "stadgent"]
-CATEGORY_BEDRIJVEN = ["belfius", "telenet", "proximus", "colruyt", "kbc", "dstny"]
+CATEGORY_BEDRIJVEN = ["belfius", "telenet", "proximus", "colruyt", "kbc", "dstny", "lapatate", "randstad"]
 # KMO's met een eigen vacaturepagina in platte HTML (scanbaar via gewone HTTP).
 CATEGORY_KMO = ["dsmkeukens"]
 
@@ -185,6 +185,13 @@ SITE_URLS: dict[str, list[str]] = {
     "dstny": [
         "https://jobs.dstny.be/en",
     ],
+    "lapatate": [
+        "https://jointhefryside.jobtoolz.com/nl",
+    ],
+    # Randstad (incl. Randstad Professional) — placeholder, rebuilt in _refresh_search_urls().
+    "randstad": [
+        "https://www.randstad.be/werknemers/jobs/q-marketing-manager/",
+    ],
 
     # ── 6. KMO's Rechtstreeks (eigen vacaturepagina, platte HTML) ───────
     "dsmkeukens": [
@@ -219,7 +226,16 @@ _ORACLE_ORC_SITES: dict[str, str] = {
 # page as JSON (window.jobComponent([...])), so we parse it directly (no LLM call).
 _JOBTOOLZ_SITES: dict[str, str] = {
     "dstny": "Dstny",
+    "lapatate": "La Patate",
 }
+
+# Randstad (incl. Randstad Professional) keyword searches. The results page is
+# server-rendered HTML with stable data-locator-id job cards, parsed without LLM.
+_RANDSTAD_TERMS = (
+    "marketing manager", "marketing director", "head of marketing", "brand manager",
+    "communicatie", "communication manager", "content marketing", "sponsoring",
+    "partnership manager", "responsable marketing", "employer branding",
+)
 
 
 # ---------------------------------------------------------------------------
@@ -370,6 +386,9 @@ def _refresh_search_urls() -> None:
         for s in _INDEED_PAGES
     ]
     SITE_URLS["stepstone"] = [f"https://www.stepstone.be/jobs/{t}" for t in _STEPSTONE_TERMS]
+    SITE_URLS["randstad"] = [
+        f"https://www.randstad.be/werknemers/jobs/q-{t.replace(' ', '-')}/" for t in _RANDSTAD_TERMS
+    ]
 
 
 _refresh_search_urls()
@@ -492,14 +511,97 @@ def _parse_jobtoolz_json(html: str, company: str, source_site: str) -> list[JobL
         location = (j.get("location") or "").strip()
         loc_l = location.lower()
         remote = "remote" if "remote" in loc_l else "hybrid" if "hybri" in loc_l else "unknown"
+        url = (j.get("url") or "").strip()
+        detail = _jobtoolz_detail(url)
         out.append(
             JobListing(
                 title=title,
                 company=company,
-                location=location,
+                location=detail.get("location") or location,
                 source_site=source_site,
-                remote=remote,
-                apply_url=(j.get("url") or "").strip(),
+                remote="remote" if remote == "unknown" and detail.get("telecommute") else remote,
+                posted_date=detail.get("posted_date", ""),
+                apply_url=url,
+                description_summary=detail.get("description", ""),
+            )
+        )
+    return out
+
+
+_DETAIL_DESC_CHARS = 1500
+# ISO country codes in JobPosting addresses -> names the Belgium filter recognises.
+_COUNTRY_NAMES = {"BE": "Belgium", "NL": "Netherlands", "FR": "France", "PT": "Portugal", "DE": "Germany"}
+
+
+def _jobtoolz_detail(url: str) -> dict:
+    """Read the schema.org JobPosting on a Jobtoolz vacancy page: description,
+    posting date and location. The overview list only has title + a vague
+    location ("Remotely", "Hybrid ()"), which scored every job too low."""
+    import html as _html
+    import json
+    import re
+    import urllib.request
+
+    if not url:
+        return {}
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    try:
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            page = resp.read().decode("utf-8", errors="replace")
+    except Exception as exc:
+        print(f"  [warn] jobtoolz detail error: {type(exc).__name__}: {url[:70]}")
+        return {}
+
+    for raw in re.findall(r'<script type="application/ld\+json">(.*?)</script>', page, re.S):
+        try:
+            data = json.loads(raw)
+        except ValueError:
+            continue
+        if not isinstance(data, dict) or data.get("@type") != "JobPosting":
+            continue
+        text = re.sub(r"<[^>]+>", " ", _html.unescape(data.get("description") or ""))
+        address = ((data.get("jobLocation") or {}).get("address") or {}) if isinstance(data.get("jobLocation"), dict) else {}
+        country = str(address.get("addressCountry") or "")
+        country = _COUNTRY_NAMES.get(country.upper(), country)
+        loc = ", ".join(x for x in (str(address.get("addressLocality") or ""), country) if x)
+        return {
+            "description": re.sub(r"\s+", " ", text).strip()[:_DETAIL_DESC_CHARS],
+            "posted_date": str(data.get("datePosted") or ""),
+            "location": loc,
+            "telecommute": data.get("jobLocationType") == "TELECOMMUTE",
+        }
+    return {}
+
+
+def _parse_randstad_html(html: str) -> list[JobListing]:
+    """Parse Randstad.be search results (no LLM). Each job card carries
+    data-locator-id fields; a "professional" badge marks Randstad Professional."""
+    import html as _html
+    import re
+
+    def field(card: str, name: str) -> str:
+        m = re.search(rf'data-locator-id="joblisting_jobcard_{name}"[^>]*>(.*?)</(?:li|span|h3|p|div)>', card, re.S)
+        return re.sub(r"<[^>]+>|\s+", " ", _html.unescape(m.group(1))).strip() if m else ""
+
+    parts = re.split(r'(?=<a href="/werknemers/jobs/[^"]+/"[^>]*><h3 data-locator-id="joblisting_jobcard_title")', html)
+    out: list[JobListing] = []
+    for prev, card in zip(parts, parts[1:]):
+        url_m = re.match(r'<a href="([^"]+)"', card)
+        title = field(card, "title")
+        if not url_m or not title:
+            continue
+        is_pro = ">professional</span>" in prev[-600:]
+        client = field(card, "companyname")
+        agency = "Randstad Professional" if is_pro else "Randstad"
+        company = f"{agency} (anonieme klant)" if not client or client.lower() == "anonymous company" else f"{client} (via {agency})"
+        out.append(
+            JobListing(
+                title=title[:1].upper() + title[1:],
+                company=company,
+                location=field(card, "location"),
+                source_site="randstad",
+                experience_level=field(card, "jobtype"),
+                apply_url="https://www.randstad.be" + url_m.group(1),
             )
         )
     return out
@@ -713,6 +815,8 @@ class ScraplingExtractor:
             return _parse_stepstone_json(html)
         if source_site in _JOBTOOLZ_SITES:
             return _parse_jobtoolz_json(html, _JOBTOOLZ_SITES[source_site], source_site)
+        if source_site == "randstad":
+            return _parse_randstad_html(html)
         context = _html_to_context(html, base_url=url)
         print(f"    [ctx] html={len(html)}ch context={len(context)}ch url={url[:70]}")
         if len(context) < MIN_CONTEXT_CHARS:
