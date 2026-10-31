@@ -26,6 +26,8 @@ TIER_STRONG = "strong"
 TIER_CONSIDER = "consider"
 TIER_LOW = "low"
 
+_LANG_CODES = {"nl": "dutch", "fr": "french", "en": "english", "de": "german"}
+
 _TIER_THRESHOLDS = {
     TIER_STRONG: 7,
     TIER_CONSIDER: 5,
@@ -43,7 +45,7 @@ _DOMAIN_TITLE_TERMS = frozenset({
     "content", "social media", "seo", "search engine", "sea marketing", "digital marketing",
     "growth marketing", "growth manager", "head of growth", "growth lead", "growth hacker",
     "advertising", "advertentie", "media planner", "media buyer",
-    "activation", "activatie", "crm", "go-to-market", "demand generation",
+    "activation", "activatie", "crm", "go-to-market", "demand generation", "chief marketing",
     "influencer", "employer brand", "go to market", "product marketing",
     # Events & sponsoring
     "event manager", "eventmanager", "event marke", "evenement",
@@ -138,6 +140,7 @@ def score_listing(listing: JobListing) -> ScoredListing:
         _has(title_norm, TARGET_TITLES)
         or _has(title_norm, _DOMAIN_TITLE_TERMS)
         or _is_partner_role(title_norm)
+        or _has_word(title_norm, frozenset({"cmo"}))
     ) and not _has(title_norm, _DOMAIN_EXCLUDE_TERMS)
     if is_domain:
         score += _TITLE_MATCH
@@ -166,7 +169,10 @@ def score_listing(listing: JobListing) -> ScoredListing:
         flags.append("[+] remote/hybrid")
 
     # --- Language fit (Dutch or French native) ---
-    lang_blob = _norm(" ".join(listing.languages) + " " + listing.description_summary)
+    # Expand short codes ("NL", "FR") — only as whole language entries, never as
+    # substrings of the description.
+    langs = [_LANG_CODES.get(_norm(la), la) for la in listing.languages]
+    lang_blob = _norm(" ".join(langs) + " " + listing.description_summary)
     if _has(lang_blob, PREFERRED_LANGUAGES):
         score += _PREFERRED_LANG
         flags.append("[+] Dutch/French required")

@@ -1,6 +1,7 @@
 """Tests for the scoring and filtering engine."""
 
 from src.models import JobListing
+from src.profile import CORE_SKILLS
 from src.filters import (
     filter_and_score,
     score_listing,
@@ -118,10 +119,9 @@ class TestSkillScoring:
         assert with_skills.score > base.score
 
     def test_skill_bonus_capped_at_four(self):
-        many_skills = score_listing(_listing(
-            skills=["brand management", "sponsorship", "event management",
-                    "people management", "atl", "btl", "campaign management"]
-        ))
+        # Seven skills straight from the active CV profile, so the test doesn't
+        # break when a new CV changes the skill names.
+        many_skills = score_listing(_listing(skills=sorted(CORE_SKILLS)[:7]))
         assert "[+] 4 skill(s) matched" in many_skills.flags
 
 
