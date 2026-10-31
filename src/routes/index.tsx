@@ -877,7 +877,7 @@ function ScanHero({
           )}
           {!isPreview && !nextLabel && (
             <p className="text-xs text-muted-foreground">
-              Automatisch elke dinsdag en vrijdag om 08:00
+              Automatisch elke donderdag om 08:00
             </p>
           )}
         </div>
