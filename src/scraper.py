@@ -115,7 +115,7 @@ CATEGORY_MUST_HAVE = ["michaelpage", "roberthalf", "hays"]
 CATEGORY_SENIOR = ["robertwalters", "hudson"]
 CATEGORY_INTERIM = ["mindsandmore"]
 CATEGORY_OVERHEID = ["werkenvoor", "stadgent"]
-CATEGORY_BEDRIJVEN = ["belfius", "telenet", "proximus", "colruyt", "kbc"]
+CATEGORY_BEDRIJVEN = ["belfius", "telenet", "proximus", "colruyt", "kbc", "dstny"]
 # KMO's met een eigen vacaturepagina in platte HTML (scanbaar via gewone HTTP).
 CATEGORY_KMO = ["dsmkeukens"]
 
@@ -181,6 +181,10 @@ SITE_URLS: dict[str, list[str]] = {
     "kbc": [
         "https://www.kbc.com/en/working-at-kbc/joining-us.html",
     ],
+    # Jobtoolz careers site — jobs parsed from embedded JSON (no LLM), see _JOBTOOLZ_SITES.
+    "dstny": [
+        "https://jobs.dstny.be/en",
+    ],
 
     # ── 6. KMO's Rechtstreeks (eigen vacaturepagina, platte HTML) ───────
     "dsmkeukens": [
@@ -209,6 +213,12 @@ SITE_URLS: dict[str, list[str]] = {
 # the JSON requisitions API; jobs are parsed directly from JSON (no LLM call).
 _ORACLE_ORC_SITES: dict[str, str] = {
     "wyre": "Wyre (Joint Venture Telenet x Fluvius)",
+}
+
+# Jobtoolz careers sites: slug -> employer label. The job list is embedded in the
+# page as JSON (window.jobComponent([...])), so we parse it directly (no LLM call).
+_JOBTOOLZ_SITES: dict[str, str] = {
+    "dstny": "Dstny",
 }
 
 
@@ -323,7 +333,7 @@ _LINKEDIN_FIRM_TERMS = (
 # marketing) appear on LinkedIn; we search by company name and let the domain
 # gate keep the relevant ones. Add new ones here as requested.
 _LINKEDIN_COMPANY_TERMS = (
-    "Leonidas", "Herbalife", "Vlerick", "Baloise",
+    "Leonidas", "Herbalife", "Vlerick", "Baloise", "Dstny",
 )
 
 
@@ -451,6 +461,45 @@ def _fetch_oracle_orc(api_url: str, company: str, source_site: str) -> list[JobL
                 posted_date=(r.get("PostedDate") or "").strip(),
                 apply_url=f"{detail_base}{r.get('Id')}" if r.get("Id") else api_url,
                 description_summary="",
+            )
+        )
+    return out
+
+
+def _parse_jobtoolz_json(html: str, company: str, source_site: str) -> list[JobListing]:
+    """Parse a Jobtoolz careers page (no LLM). The jobs overview ships every
+    vacancy as HTML-escaped JSON in ``x-data="window.jobComponent([...])"``."""
+    import html as _html
+    import json
+
+    marker = "window.jobComponent("
+    start = html.find(marker)
+    if start < 0:
+        print(f"  [warn] {source_site}: Jobtoolz job JSON not found")
+        return []
+    blob = _html.unescape(html[start + len(marker):]).lstrip()
+    try:
+        jobs, _ = json.JSONDecoder().raw_decode(blob)
+    except ValueError as exc:
+        print(f"  [warn] {source_site}: Jobtoolz JSON parse error: {str(exc)[:80]}")
+        return []
+
+    out: list[JobListing] = []
+    for j in jobs if isinstance(jobs, list) else []:
+        title = (j.get("title") or "").strip()
+        if not title:
+            continue
+        location = (j.get("location") or "").strip()
+        loc_l = location.lower()
+        remote = "remote" if "remote" in loc_l else "hybrid" if "hybri" in loc_l else "unknown"
+        out.append(
+            JobListing(
+                title=title,
+                company=company,
+                location=location,
+                source_site=source_site,
+                remote=remote,
+                apply_url=(j.get("url") or "").strip(),
             )
         )
     return out
@@ -662,6 +711,8 @@ class ScraplingExtractor:
             return _parse_indeed_json(html)
         if source_site == "stepstone":
             return _parse_stepstone_json(html)
+        if source_site in _JOBTOOLZ_SITES:
+            return _parse_jobtoolz_json(html, _JOBTOOLZ_SITES[source_site], source_site)
         context = _html_to_context(html, base_url=url)
         print(f"    [ctx] html={len(html)}ch context={len(context)}ch url={url[:70]}")
         if len(context) < MIN_CONTEXT_CHARS:
