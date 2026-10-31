@@ -19,14 +19,16 @@ _SKILL_CAP = 4      # max bonus from skills
 _REMOTE = 1
 _PENALTY_JUNIOR = -3
 _PENALTY_OFFSITE = -2
+_SENIOR_TITLE = 2       # manager/head/director level — the candidate's level
+_PENALTY_BELOW_LEVEL = -2  # coordinator/medewerker-level roles
 
 TIER_STRONG = "strong"
 TIER_CONSIDER = "consider"
 TIER_LOW = "low"
 
 _TIER_THRESHOLDS = {
-    TIER_STRONG: 5,
-    TIER_CONSIDER: 4,
+    TIER_STRONG: 7,
+    TIER_CONSIDER: 5,
 }
 
 # Marketing / sponsorship / partnership domain. A listing only counts as a real
@@ -55,14 +57,33 @@ _DOMAIN_TITLE_TERMS = frozenset({
 
 # Titles that match a broad domain term but are not actually marketing/comms work
 # (e.g. "content moderator" = trust & safety, not content marketing).
-_DOMAIN_EXCLUDE_TERMS = frozenset({"moderator", "moderation"})
+_DOMAIN_EXCLUDE_TERMS = frozenset({
+    "moderator", "moderation",
+    # HR / recruitment roles that mention marketing, branding or partners
+    "recruit", "sourcer", "talent partner", "talent acquisition",
+    # IT/product roles where "communications" means telecom tech
+    "product owner", "unified communications",
+    "administratief", "administrative",
+})
+
+# Seniority, judged on the TITLE. The candidate has 15+ years and leads teams,
+# so manager/head/director roles rank above specialist- and coordinator-level ones.
+_SENIOR_TITLE_TERMS = frozenset({
+    "manager", "head", "director", "directeur", "directrice", "direction", "lead",
+    "vp", "vice president", "svp", "chief", "cmo", "hoofd", "diensthoofd",
+    "verantwoordelijke", "responsable",
+})
+_BELOW_LEVEL_TITLE_TERMS = frozenset({
+    "coordinator", "coördinator", "coordinatrice", "medewerker", "stafmedewerker",
+    "creator", "writer",
+})
 
 # Support-level titles: too junior for a senior candidate. Checked on the TITLE
 # only — a senior posting may mention "assistant" in its description.
-_JUNIOR_TITLE_TERMS = frozenset({"assistant", "assistent", "assistante", "assistente"})
+_JUNIOR_TITLE_TERMS = frozenset({"assistant", "assistent", "assistante", "assistente", "jr"})
 
-# Non-marketing roles are capped at this score (below the consider threshold of
-# 4) so they always rank — and display — as low, on any client.
+# Non-marketing and junior roles are capped at this score (below the consider
+# threshold) so they always rank — and display — as low, on any client.
 _NON_DOMAIN_SCORE_CAP = 3
 
 
@@ -76,7 +97,8 @@ def _is_partner_role(title: str) -> bool:
     Catches every variant (partner manager, partnership(s), partner relationship,
     channel/strategic partner, alliance) without listing each one."""
     t = title.lower()
-    if "business partner" in t:
+    # "business partner" = HR; "Partner, <practice>" = a consulting-firm partner.
+    if "business partner" in t or _re.match(r"\s*partner\s*[,\-–]", t):
         return False
     return "partner" in t or "alliance" in t
 
@@ -120,6 +142,13 @@ def score_listing(listing: JobListing) -> ScoredListing:
     if is_domain:
         score += _TITLE_MATCH
         flags.append("[+] title match")
+        # Suffix match too, for Dutch compounds like "communicatiemanager".
+        if _has_word(title_norm, _SENIOR_TITLE_TERMS) or _re.search(r"(manager|directeur|verantwoordelijke)\b", title_norm):
+            score += _SENIOR_TITLE
+            flags.append("[+] senior level")
+        elif _has_word(title_norm, _BELOW_LEVEL_TITLE_TERMS):
+            score += _PENALTY_BELOW_LEVEL
+            flags.append("[!] below level")
 
     # --- Geography ---
     is_belgium = _has(blob, BELGIUM_INDICATORS)

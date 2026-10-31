@@ -128,10 +128,12 @@ Scoring lives in `src/filters.py`. Each listing starts at 0 and gets:
 | Remote/hybrid mentioned | +1 |
 | Requires Dutch or French (your preferred languages) | +2 |
 | Each of your core skills mentioned (max 4) | +1 each |
-| Junior/entry-level/stage/intern wording | **−3** |
+| Senior title (manager, head, director, lead, VP, …) | +2 |
+| Below-level title (coordinator, medewerker, creator, writer) | **−2** |
+| Junior/entry-level/stage/intern wording, or an assistant/"Jr" title | **−3**, and capped at **Laag** |
 | Not in Belgium and not remote | **−2** |
 
-Tiers: **Sterk** ≥ 5, **Overweeg** ≥ 4, everything else **Laag**.
+Tiers: **Sterk** ≥ 7, **Overweeg** ≥ 5, everything else **Laag**.
 
 **⚠️ Important caveat:** a listing can *only* be Sterk or Overweeg if its
 **title** matches a marketing/brand/sponsorship/partnership/communications

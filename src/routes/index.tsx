@@ -1005,9 +1005,10 @@ function JobCard({ job, applied, hidden, onOpen, onApply, onToggleApplied, onHid
   };
   const shownTier = advice?.fit && FIT_TO_TIER[advice.fit] ? FIT_TO_TIER[advice.fit] : job.tier;
   // Keep the score number in step with the (advice-aware) tier so a high keyword
-  // score never sits next to a "weak" verdict: low → ≤3, consider → 4, strong → ≥5.
+  // score never sits next to a "weak" verdict: low → ≤4, consider → 5–6, strong → ≥7
+  // (same thresholds as src/filters.py).
   const clampScoreToTier = (s: number, t: "strong" | "consider" | "low"): number =>
-    t === "low" ? Math.min(s, 3) : t === "consider" ? 4 : Math.max(s, 5);
+    t === "low" ? Math.min(s, 4) : t === "consider" ? Math.min(Math.max(s, 5), 6) : Math.max(s, 7);
   const shownScore =
     advice?.fit && FIT_TO_TIER[advice.fit] ? clampScoreToTier(job.score, FIT_TO_TIER[advice.fit]) : job.score;
   const shownColor = tierColor(shownTier);

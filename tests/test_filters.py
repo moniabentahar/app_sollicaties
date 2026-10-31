@@ -157,3 +157,66 @@ class TestTiers:
         listings = [_listing() for _ in range(5)]
         result = filter_and_score(listings)
         assert len(result) == 5
+
+
+# --- Seniority / level ---
+
+class TestSeniority:
+    def test_senior_title_outranks_specialist(self):
+        manager = score_listing(_listing(title="Marketing Manager"))
+        specialist = score_listing(_listing(title="Marketing Specialist"))
+        assert manager.score == specialist.score + 2
+        assert "[+] senior level" in manager.flags
+
+    def test_dutch_compound_manager_is_senior(self):
+        scored = score_listing(_listing(title="Communicatiemanager"))
+        assert "[+] senior level" in scored.flags
+        assert scored.tier == TIER_STRONG
+
+    def test_coordinator_is_below_level(self):
+        scored = score_listing(_listing(title="Content Coordinator"))
+        assert "[!] below level" in scored.flags
+        assert scored.tier == TIER_LOW
+
+    def test_specialist_in_belgium_is_consider(self):
+        scored = score_listing(_listing(title="PR & Communications Specialist"))
+        assert scored.tier == TIER_CONSIDER
+
+    def test_assistant_title_capped_low(self):
+        scored = score_listing(_listing(
+            title="Vastgoed - Sales & Marketing assistant",
+            remote="hybrid",
+            languages=["Dutch", "French"],
+        ))
+        assert "[!] junior/entry-level" in scored.flags
+        assert scored.score <= 3
+        assert scored.tier == TIER_LOW
+
+    def test_jr_title_capped_low(self):
+        scored = score_listing(_listing(title="Jr Marketing & Communication Specialist"))
+        assert scored.tier == TIER_LOW
+
+    def test_assistant_in_description_not_penalised(self):
+        scored = score_listing(_listing(description_summary="You manage an assistant."))
+        assert "[!] junior/entry-level" not in scored.flags
+
+
+# --- Non-marketing roles that mention marketing words ---
+
+class TestDomainExclusions:
+    def test_recruitment_consultant_not_a_match(self):
+        scored = score_listing(_listing(title="Recruitment Consultant Sales & Marketing"))
+        assert "[+] title match" not in scored.flags
+        assert scored.tier == TIER_LOW
+
+    def test_unified_communications_product_owner_not_a_match(self):
+        scored = score_listing(_listing(title="Product Owner — Unified Communications UX"))
+        assert scored.tier == TIER_LOW
+
+    def test_consulting_partner_not_a_partnership_role(self):
+        scored = score_listing(_listing(title="Partner, Safe and Sustainable Operations, Belgium"))
+        assert scored.tier == TIER_LOW
+
+    def test_partnership_manager_still_matches(self):
+        scored = score_listing(_listing(title="Strategic Partnership Manager"))
+        assert scored.tier == TIER_STRONG
