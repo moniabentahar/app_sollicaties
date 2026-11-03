@@ -147,6 +147,18 @@ export function JobDetailDialog({
             </a>
           )}
 
+          {/* LinkedIn blokkeert vacatures vaak achter een login: bied een zoekopdracht buiten LinkedIn aan. */}
+          {job.apply_url?.includes("linkedin.com") && (
+            <a
+              href={`https://www.google.com/search?q=${encodeURIComponent(`"${job.title}" ${job.company} -site:linkedin.com`)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="ml-4 inline-flex items-center gap-1.5 text-sm font-semibold text-accent hover:underline"
+            >
+              Zoek buiten LinkedIn <ExternalLink className="h-3.5 w-3.5" />
+            </a>
+          )}
+
           {/* AI fit-advies op basis van CV + "over mij" profiel */}
           <div className="rounded-lg border border-border bg-muted/30 p-3">
             <div className="mb-1.5 flex items-center justify-between gap-2">

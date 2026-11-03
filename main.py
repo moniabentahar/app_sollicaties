@@ -9,6 +9,7 @@ import typer
 from dotenv import load_dotenv
 from rich.console import Console
 
+from src.enrich import fetch_descriptions, summarize_listings
 from src.filters import filter_and_score
 from src.output import print_summary, write_csv
 from src.profile import (
@@ -101,7 +102,8 @@ def run(
     listings = scrape_sites(api_key, sites=sites, verbose=verbose, use_browser=browser)
     console.print(f"\nUnique listings found: [cyan]{len(listings)}[/cyan]")
 
-    scored = filter_and_score(listings)
+    listings, detail_texts = fetch_descriptions(listings)
+    scored = summarize_listings(filter_and_score(listings), detail_texts, api_key)
     visible = [s for s in scored if s.score >= min_score]
 
     if not csv_only:
