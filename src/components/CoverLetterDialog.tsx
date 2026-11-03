@@ -1,5 +1,6 @@
 import { useState } from "react"
-import { Copy, Check, Loader2, ExternalLink, Link as LinkIcon } from "lucide-react"
+import { Copy, Check, Loader2, ExternalLink, Link as LinkIcon, Sparkles } from "lucide-react"
+import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -21,6 +22,8 @@ interface CoverLetterDialogProps {
   loading: boolean
   onLetterChange: (value: string) => void
   onCvChange: (value: string) => void
+  /** Rewrites the CV from the user's remarks; resolves with the new CV text. */
+  onReviseCv?: (remarks: string) => Promise<string>
   onConfirm?: () => Promise<void>
   readOnly?: boolean
 }
@@ -36,11 +39,14 @@ export function CoverLetterDialog({
   loading,
   onLetterChange,
   onCvChange,
+  onReviseCv,
   onConfirm,
   readOnly = false,
 }: CoverLetterDialogProps) {
   const [tab, setTab] = useState<Tab>("letter")
   const [copied, setCopied] = useState<"" | "doc" | "url">("")
+  const [remarks, setRemarks] = useState("")
+  const [isRevising, setIsRevising] = useState(false)
 
   const text = tab === "letter" ? letter : cv
   const applyUrl = job?.apply_url ?? ""
@@ -54,6 +60,24 @@ export function CoverLetterDialog({
       /* clipboard kan geweigerd worden; stil falen is acceptabel */
     }
   }
+
+  async function handleReviseCv() {
+    if (!onReviseCv || !remarks.trim()) return
+    setIsRevising(true)
+    try {
+      onCvChange(await onReviseCv(remarks.trim()))
+      setRemarks("")
+      toast.success("CV aangepast", { description: "Lees het na; je kan het nog altijd zelf bewerken." })
+    } catch (err) {
+      toast.error("Kon het CV niet aanpassen.", {
+        description: err instanceof Error ? err.message : undefined,
+      })
+    } finally {
+      setIsRevising(false)
+    }
+  }
+
+  const showRemarks = tab === "cv" && !readOnly && !loading && Boolean(onReviseCv) && Boolean(cv)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -124,8 +148,37 @@ export function CoverLetterDialog({
             value={text}
             onChange={(e) => (tab === "letter" ? onLetterChange(e.target.value) : onCvChange(e.target.value))}
             spellCheck={false}
-            className="h-[48vh] w-full resize-none rounded-lg border border-input bg-card p-4 font-sans text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-ring/40"
+            disabled={isRevising}
+            className={`${showRemarks ? "h-[38vh]" : "h-[48vh]"} w-full resize-none rounded-lg border border-input bg-card p-4 font-sans text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-ring/40 disabled:opacity-60`}
           />
+        )}
+
+        {/* Opmerkingen: laat het CV herschrijven (blijft in het Engels) */}
+        {showRemarks && (
+          <div className="space-y-2 rounded-lg border border-border bg-muted/40 p-3">
+            <label htmlFor="cv-remarks" className="text-xs font-semibold">
+              Opmerkingen voor het CV
+            </label>
+            <textarea
+              id="cv-remarks"
+              value={remarks}
+              onChange={(e) => setRemarks(e.target.value)}
+              maxLength={2000}
+              rows={2}
+              disabled={isRevising}
+              placeholder="Bv. maak het profiel korter, zet sponsoring meer op de voorgrond, laat de oudste functies weg…"
+              className="w-full resize-y rounded-md border border-input bg-card p-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring/40"
+            />
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-[11px] text-muted-foreground">
+                Het CV blijft volledig in het Engels. Je kan het daarna nog zelf bewerken.
+              </span>
+              <Button size="sm" onClick={handleReviseCv} disabled={isRevising || !remarks.trim()}>
+                {isRevising ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                {isRevising ? "CV aanpassen…" : "Pas CV aan"}
+              </Button>
+            </div>
+          </div>
         )}
 
         <DialogFooter className="gap-2 sm:gap-2">

@@ -313,7 +313,7 @@ function App() {
   async function handleConfirmApply() {
     if (!letterJob) return;
     try {
-      await api.saveApplication(letterJob, letterText);
+      await api.saveApplication(letterJob, letterText, cvText);
       setApplications(await api.applications());
       if (letterJob.apply_url) {
         window.open(letterJob.apply_url, "_blank", "noopener,noreferrer");
@@ -329,6 +329,7 @@ function App() {
   function viewAppliedLetter(app: Application) {
     setLetterJob(app);
     setLetterText(app.cover_letter ?? "");
+    setCvText(app.cv ?? "");
     setLetterLoading(false);
     setLetterReadOnly(true);
     setLetterOpen(true);
@@ -662,6 +663,7 @@ function App() {
         loading={letterLoading}
         onLetterChange={setLetterText}
         onCvChange={setCvText}
+        onReviseCv={letterJob ? (remarks) => api.reviseCv(letterJob, cvText, remarks) : undefined}
         onConfirm={letterReadOnly ? undefined : handleConfirmApply}
         readOnly={letterReadOnly}
       />

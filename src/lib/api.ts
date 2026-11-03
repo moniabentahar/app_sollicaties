@@ -37,6 +37,7 @@ export interface Application extends Listing {
   job_id: string
   applied_date: string
   cover_letter?: string
+  cv?: string
 }
 
 export interface Scan {
@@ -154,8 +155,8 @@ export const api = {
 
   applications: () => getJson<Application[]>("/api/applications"),
 
-  async saveApplication(job: Listing, letter?: string): Promise<{ ok: boolean; job_id: string }> {
-    const body = letter ? { ...job, cover_letter: letter } : job
+  async saveApplication(job: Listing, letter?: string, cv?: string): Promise<{ ok: boolean; job_id: string }> {
+    const body = { ...job, ...(letter ? { cover_letter: letter } : {}), ...(cv ? { cv } : {}) }
     const res = await fetch(await apiUrl("/api/applications"), {
       method: "POST",
       headers: { "Content-Type": "application/json", ...TUNNEL_HEADERS },
@@ -188,6 +189,21 @@ export const api = {
       body: JSON.stringify(job),
     })
     if (!res.ok) throw new Error("could not generate cv")
+    const data = (await res.json()) as { cv: string }
+    return data.cv
+  },
+
+  /** Rewrite the CV following the user's remarks (always English, no invented facts). */
+  async reviseCv(job: Listing, cv: string, remarks: string): Promise<string> {
+    const res = await fetch(await apiUrl("/api/revise-cv"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...TUNNEL_HEADERS },
+      body: JSON.stringify({ job, cv, remarks }),
+    })
+    if (!res.ok) {
+      const detail = await res.json().catch(() => null)
+      throw new Error(detail?.detail ?? "could not revise cv")
+    }
     const data = (await res.json()) as { cv: string }
     return data.cv
   },

@@ -321,17 +321,17 @@ def _build_cover_letter(job: dict) -> str:
 
 
 def _build_cv(job: dict) -> str:
-    """A tailored one-page CV draft built from the uploaded profile, in the job's
-    language, with skills that match the vacancy listed first. Editable by the user."""
+    """A tailored one-page CV draft built from the uploaded profile, always in
+    English (headings included), with skills that match the vacancy listed first.
+    Editable by the user, and revisable with remarks via /api/revise-cv."""
     profile = load_profile()
     if not (profile.get("name") or profile.get("core_skills")):
         return "Upload eerst een CV om een CV-voorstel te genereren."
 
-    name = profile.get("name") or "Kandidaat"
+    name = profile.get("name") or "Candidate"
     contact = " | ".join(
         c for c in (profile.get("location"), profile.get("email"), profile.get("phone")) if c
     )
-    lang = _detect_letter_language(job)
     title = job.get("title", "")
     company = job.get("company", "")
 
@@ -341,24 +341,13 @@ def _build_cv(job: dict) -> str:
     matched = [core_lower[s.lower()] for s in raw if s.lower() in core_lower]
     ordered = matched + [s for s in skills if s not in matched]
     skills_block = "\n".join(f"• {s}" for s in ordered[:10]) or "•"
-    langs = ", ".join(profile.get("languages", [])) or "—"
-    titles = ", ".join(sorted(profile.get("target_titles", []))[:6]) or title
+    langs = ", ".join(la.capitalize() for la in profile.get("languages", [])) or "—"
+    titles = ", ".join(t.title() for t in sorted(profile.get("target_titles", []))[:6]) or title
 
-    labels = {
-        "nl": ("Gericht op", "PROFIEL", "WERKERVARING", "OPLEIDING", "KERNCOMPETENTIES",
-               "TALEN", "GEWENSTE FUNCTIES",
-               f"Gemotiveerde, resultaatgerichte professional met ervaring in marketing, "
-               f"communicatie en sponsoring. Klaar om bij te dragen aan {company} als {title}."),
-        "fr": ("Pour le poste de", "PROFIL", "EXPÉRIENCE", "FORMATION", "COMPÉTENCES CLÉS",
-               "LANGUES", "FONCTIONS VISÉES",
-               f"Professionnel(le) motivé(e) et orienté(e) résultats, expérimenté(e) en marketing, "
-               f"communication et sponsoring. Prêt(e) à contribuer à {company} en tant que {title}."),
-        "en": ("Applying for", "PROFILE", "EXPERIENCE", "EDUCATION", "KEY SKILLS",
-               "LANGUAGES", "TARGET ROLES",
-               f"Motivated, results-driven professional experienced in marketing, communication "
-               f"and sponsorship. Ready to contribute to {company} as {title}."),
-    }[lang]
-    aim, p_lbl, exp_lbl, edu_lbl, s_lbl, l_lbl, t_lbl, fallback_summary = labels
+    fallback_summary = (
+        f"Motivated, results-driven professional experienced in marketing, communication "
+        f"and sponsorship. Ready to contribute to {company} as {title}."
+    )
 
     summary = profile.get("summary") or fallback_summary
 
@@ -379,17 +368,63 @@ def _build_cv(job: dict) -> str:
     edu_block = "\n".join(edu_lines)
 
     parts = [
-        f"{name}\n{contact}\n{aim}: {title} — {company}",
-        f"{p_lbl}\n{summary}",
+        f"{name}\n{contact}\nApplying for: {title} — {company}",
+        f"PROFILE\n{summary}",
     ]
     if exp_block:
-        parts.append(f"{exp_lbl}\n{exp_block}")
+        parts.append(f"EXPERIENCE\n{exp_block}")
     if edu_block:
-        parts.append(f"{edu_lbl}\n{edu_block}")
-    parts.append(f"{s_lbl}\n{skills_block}")
-    parts.append(f"{l_lbl}\n{langs}")
-    parts.append(f"{t_lbl}\n{titles}")
+        parts.append(f"EDUCATION\n{edu_block}")
+    parts.append(f"KEY SKILLS\n{skills_block}")
+    parts.append(f"LANGUAGES\n{langs}")
+    parts.append(f"TARGET ROLES\n{titles}")
     return "\n\n".join(parts) + "\n"
+
+
+_CV_REMARKS_MAX = 2000
+
+
+def _revise_cv(job: dict, cv: str, remarks: str) -> str:
+    """Rewrite the CV draft following the candidate's remarks. Always English,
+    and only facts already in the CV or the uploaded profile — never invented."""
+    api_key = _load_api_key()
+    if not api_key:
+        raise HTTPException(503, "Geen Anthropic API-sleutel ingesteld.")
+    profile = load_profile()
+    facts = json.dumps(
+        {k: profile.get(k) for k in ("summary", "experience", "education", "core_skills", "languages")},
+        ensure_ascii=False,
+    )[:12000]
+    from anthropic import Anthropic
+
+    try:
+        msg = Anthropic(api_key=api_key).messages.create(
+            model=_LETTER_MODEL,
+            max_tokens=3000,
+            messages=[{
+                "role": "user",
+                "content": (
+                    "Revise this CV following the candidate's remarks. Rules:\n"
+                    "- Write everything in English, including all section headings, even if the "
+                    "remarks or the vacancy are in Dutch or French.\n"
+                    "- Use only facts from the current CV or the candidate profile below; never "
+                    "invent roles, dates, figures or achievements.\n"
+                    "- Keep the plain-text layout (UPPERCASE headings, • bullets); no markdown.\n"
+                    "- Return only the revised CV, no explanation.\n\n"
+                    f"VACANCY: {job.get('title', '')} — {job.get('company', '')}\n"
+                    f"{job.get('description_summary', '')}\n\n"
+                    f"CANDIDATE PROFILE (facts):\n{facts}\n\n"
+                    f"CURRENT CV:\n{cv}\n\n"
+                    f"REMARKS FROM THE CANDIDATE:\n{remarks}"
+                ),
+            }],
+        )
+    except Exception as exc:
+        raise HTTPException(502, f"CV aanpassen mislukt: {type(exc).__name__}") from exc
+    text = "\n".join(b.text for b in msg.content if getattr(b, "type", None) == "text").strip()
+    if not text:
+        raise HTTPException(502, "CV aanpassen mislukt: leeg antwoord.")
+    return text + "\n"
 
 
 _ANALYZE_MODEL = os.getenv("SOLLICITATIES_ANALYZE_MODEL", "claude-haiku-4-5")
@@ -833,6 +868,19 @@ async def generate_letter(request: Request) -> dict:
 async def generate_cv(request: Request) -> dict:
     job = await request.json()
     return {"cv": _build_cv(job)}
+
+
+@app.post("/api/revise-cv")
+async def revise_cv(request: Request) -> dict:
+    body = await request.json()
+    cv = str(body.get("cv") or "").strip()
+    remarks = str(body.get("remarks") or "").strip()
+    if not cv or not remarks:
+        raise HTTPException(400, "CV en opmerkingen zijn verplicht.")
+    if len(remarks) > _CV_REMARKS_MAX:
+        raise HTTPException(400, f"Opmerkingen te lang (max {_CV_REMARKS_MAX} tekens).")
+    job = body.get("job") if isinstance(body.get("job"), dict) else {}
+    return {"cv": await asyncio.to_thread(_revise_cv, job, cv, remarks)}
 
 
 @app.post("/api/analyze")
