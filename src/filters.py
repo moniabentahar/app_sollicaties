@@ -27,6 +27,11 @@ TIER_CONSIDER = "consider"
 TIER_LOW = "low"
 
 _LANG_CODES = {"nl": "dutch", "fr": "french", "en": "english", "de": "german"}
+# The same languages as written in Dutch/French vacancy texts.
+_LANG_NAMES = {
+    "dutch": ("nederlands", "néerlandais", "neerlandais", "nederlandstalig", "néerlandophone"),
+    "french": ("frans", "français", "francais", "franstalig", "francophone"),
+}
 
 _TIER_THRESHOLDS = {
     TIER_STRONG: 7,
@@ -84,6 +89,15 @@ _BELOW_LEVEL_TITLE_TERMS = frozenset({
 # only — a senior posting may mention "assistant" in its description.
 _JUNIOR_TITLE_TERMS = frozenset({"assistant", "assistent", "assistante", "assistente", "jr"})
 
+# Junior signals checked in the DESCRIPTION. Only unambiguous phrases: full
+# vacancy texts are long, and words like "stage" ("at any stage of the
+# recruitment process"), "student" or "graduate" appear in senior postings too.
+# The full EXCLUDE_KEYWORDS list is checked on the title and level only.
+_JUNIOR_DESCRIPTION_TERMS = frozenset({
+    "entry level", "entry-level", "0-2 years", "0-3 years", "1-2 years", "1-3 years",
+    "internship", "stagiaire", "stagaire", "offre de stage",
+})
+
 # Non-marketing and junior roles are capped at this score (below the consider
 # threshold) so they always rank — and display — as low, on any client.
 _NON_DOMAIN_SCORE_CAP = 3
@@ -129,7 +143,12 @@ def score_listing(listing: JobListing) -> ScoredListing:
     )
 
     # --- Exclusions (applied first so they can't be cancelled out) ---
-    is_junior = _has_word(blob, EXCLUDE_KEYWORDS) or _has_word(_norm(listing.title), _JUNIOR_TITLE_TERMS)
+    title_level = _norm(f"{listing.title} {listing.experience_level}")
+    is_junior = (
+        _has_word(title_level, EXCLUDE_KEYWORDS)
+        or _has_word(_norm(listing.title), _JUNIOR_TITLE_TERMS)
+        or _has_word(_norm(listing.description_summary), _JUNIOR_DESCRIPTION_TERMS)
+    )
     if is_junior:
         score += _PENALTY_JUNIOR
         flags.append("[!] junior/entry-level")
@@ -173,7 +192,8 @@ def score_listing(listing: JobListing) -> ScoredListing:
     # substrings of the description.
     langs = [_LANG_CODES.get(_norm(la), la) for la in listing.languages]
     lang_blob = _norm(" ".join(langs) + " " + listing.description_summary)
-    if _has(lang_blob, PREFERRED_LANGUAGES):
+    lang_names = frozenset(n for la in PREFERRED_LANGUAGES for n in _LANG_NAMES.get(la, ()))
+    if _has(lang_blob, PREFERRED_LANGUAGES) or _has_word(lang_blob, lang_names):
         score += _PREFERRED_LANG
         flags.append("[+] Dutch/French required")
 

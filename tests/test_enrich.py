@@ -83,3 +83,13 @@ class TestSummarizeListings:
     def test_listings_without_fetched_text_are_untouched(self):
         s = ScoredListing(_listing("u1", desc="origineel"), 8, [], TIER_STRONG)
         assert enrich.summarize_listings([s], {}, "key") == [s]
+
+
+def test_language_requirement_at_end_of_long_text_is_scored(monkeypatch):
+    """Regression: a 4000-char cut dropped 'bilingual French/Dutch' at the end."""
+    from src.filters import score_listing
+    page = ('<div class="show-more-less-html__markup">' + "Event and sponsorship work. " * 350
+            + "Languages: fully bilingual French/Dutch.</div>")
+    monkeypatch.setattr(enrich, "_get", lambda *a, **k: page)
+    out, _ = enrich.fetch_descriptions([_listing(LI_URL)])
+    assert "[+] Dutch/French required" in score_listing(out[0]).flags

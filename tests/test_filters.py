@@ -196,6 +196,21 @@ class TestSeniority:
         scored = score_listing(_listing(title="Jr Marketing & Communication Specialist"))
         assert scored.tier == TIER_LOW
 
+    def test_generic_words_in_long_description_not_junior(self):
+        """Regression: 'at any stage of the recruitment process' flagged a senior
+        Bancontact role as junior once full vacancy texts were scored."""
+        scored = score_listing(_listing(
+            title="B2B Marketing, Events & Sponsorship Manager",
+            description_summary=("You coach students and graduate profiles. If you need adjustments "
+                                 "at any stage of the recruitment process, let us know. "
+                                 "Internal starters get onboarding."),
+        ))
+        assert "[!] junior/entry-level" not in scored.flags
+
+    def test_entry_level_in_description_still_junior(self):
+        scored = score_listing(_listing(description_summary="This is an entry-level role, 0-2 years."))
+        assert "[!] junior/entry-level" in scored.flags
+
     def test_assistant_in_description_not_penalised(self):
         scored = score_listing(_listing(description_summary="You manage an assistant."))
         assert "[!] junior/entry-level" not in scored.flags
@@ -220,3 +235,17 @@ class TestDomainExclusions:
     def test_partnership_manager_still_matches(self):
         scored = score_listing(_listing(title="Strategic Partnership Manager"))
         assert scored.tier == TIER_STRONG
+
+
+class TestLanguageSynonyms:
+    def test_french_text_requiring_francais_counts(self):
+        scored = score_listing(_listing(description_summary="Vous maîtrisez le français et l'anglais."))
+        assert "[+] Dutch/French required" in scored.flags
+
+    def test_dutch_text_requiring_nederlands_counts(self):
+        scored = score_listing(_listing(description_summary="Je spreekt vlot Nederlands en Engels."))
+        assert "[+] Dutch/French required" in scored.flags
+
+    def test_unrelated_text_has_no_language_bonus(self):
+        scored = score_listing(_listing(description_summary="You speak English and German."))
+        assert "[+] Dutch/French required" not in scored.flags
