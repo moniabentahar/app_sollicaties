@@ -1,5 +1,7 @@
 """Scoring engine — ranks each JobListing against the candidate's profile."""
 
+import re as _re
+
 from src.models import JobListing, ScoredListing
 from src.profile import (
     TARGET_TITLES,
@@ -47,14 +49,14 @@ _TIER_THRESHOLDS = {
 # roles in by giving them the title-match bonus.
 _DOMAIN_TITLE_TERMS = frozenset({
     # Core marketing
-    "marketing", "brand", "merk", "communicat", "campaign", "campagne",
+    "marketing", "marketeer", "brand", "merk", "communicat", "campaign", "campagne",
     "content", "social media", "seo", "search engine", "sea marketing", "digital marketing",
     "growth marketing", "growth manager", "head of growth", "growth lead", "growth hacker",
     "advertising", "advertentie", "media planner", "media buyer",
     "activation", "activatie", "crm", "go-to-market", "demand generation", "chief marketing",
     "influencer", "employer brand", "go to market", "product marketing",
     # Events & sponsoring
-    "event manager", "eventmanager", "event marke", "evenement",
+    "event manager", "events manager", "event & ", "eventmanager", "event marke", "evenement",
     "sponsor", "sponsoring", "sponsorship",
     # Partnerships (also covered by _is_partner_role)
     "partnership", "partnerships", "partner manager",
@@ -75,26 +77,33 @@ _DOMAIN_EXCLUDE_TERMS = frozenset({
 })
 
 # A role whose title has no marketing word (e.g. "Women's Football Officer") can
-# still be a marketing/sponsorship job. It counts as domain when its TEXT covers
-# at least _TASK_DOMAIN_MIN of these topic groups — several distinct ones, so a
-# sales job that merely "works with marketing" does not qualify. Smaller bonus than a title match.
-_TASK_DOMAIN_GROUPS = (
-    ("marketing",),
-    ("merk", "brand"),
-    ("sponsor",),
-    ("communicatie", "communication", "communicat"),
-    ("campagne", "campaign"),
-    ("content",),
-    ("fans", "fanbeleving", "fan engagement", "supporters"),
-    ("partners", "partnership"),
-    ("evenement", "event"),
-)
-_TASK_DOMAIN_MIN = 5
+# still be a marketing/sponsorship job. It counts as domain when its TEXT names
+# marketing or sponsoring AND covers at least _TASK_DOMAIN_MIN of these topics.
+# Whole-word patterns: as substrings "merk" hit "opmerken" and "event" hit
+# "eventueel"/"prevent". Generic words (communicatie, partners) are left out —
+# they appear in almost every vacancy. Smaller bonus than a title match.
+_TASK_CORE_TOPICS = ("marketing", "sponsor")
+_TASK_DOMAIN_TOPICS = {
+    "marketing": _re.compile(r"\bmarketing"),
+    "sponsor": _re.compile(r"\bsponsor"),
+    "brand": _re.compile(r"\b(merk|merken|merkidentiteit|merkbeleving|merkimago|brand|brands|branding)\b"),
+    "campaign": _re.compile(r"campagne|campaign"),
+    "content": _re.compile(r"\bcontent\b"),
+    "fans": _re.compile(r"\b(fans?|fanbeleving|supporters)\b|fan engagement"),
+    "events": _re.compile(r"\b(events?|evenementen|evenement|événements?)\b"),
+    "pr": _re.compile(r"\b(pr|public relations|persrelaties|woordvoerder)\b"),
+}
+_TASK_DOMAIN_MIN = 4
 
 
-def _task_domain_groups(text: str) -> int:
-    return sum(1 for group in _TASK_DOMAIN_GROUPS if any(term in text for term in group))
+def _is_task_domain_text(text: str) -> bool:
+    found = {name for name, pattern in _TASK_DOMAIN_TOPICS.items() if pattern.search(text)}
+    return bool(found & set(_TASK_CORE_TOPICS)) and len(found) >= _TASK_DOMAIN_MIN
 
+
+# Belgian postcode at the start of a location ("3740 Bilzen", "B-2000 Antwerpen"),
+# so small towns count as Belgium too. Dutch postcodes ("1012 AB ...") excluded.
+_BE_POSTCODE = _re.compile(r"^\s*(?:b-?\s?)?[1-9]\d{3}\s+(?![a-z]{2}\b)[a-zà-ÿ]", _re.I)
 
 # Seniority, judged on the TITLE. The candidate has 15+ years and leads teams,
 # so manager/head/director roles rank above specialist- and coordinator-level ones.
@@ -146,7 +155,6 @@ def _has(haystack: str, needles: frozenset[str]) -> bool:
     return any(needle in haystack for needle in needles)
 
 
-import re as _re
 
 
 def _has_word(haystack: str, needles: frozenset[str]) -> bool:
@@ -187,7 +195,8 @@ def score_listing(listing: JobListing) -> ScoredListing:
     is_task_domain = (
         not is_domain
         and not _has(title_norm, _DOMAIN_EXCLUDE_TERMS)
-        and _task_domain_groups(_norm(listing.description_summary)) >= _TASK_DOMAIN_MIN
+        and not _has_word(title_norm, frozenset({"sales"}))  # sales roles mention marketing a lot
+        and _is_task_domain_text(_norm(listing.description_summary))
     )
     if is_task_domain:
         score += _TASK_DOMAIN
@@ -205,7 +214,7 @@ def score_listing(listing: JobListing) -> ScoredListing:
 
     # --- Geography ---
     # Whole words: as substrings "gent" hit "agent"/"urgent" and "mons" hit "demonstrate".
-    is_belgium = _has_word(blob, BELGIUM_INDICATORS)
+    is_belgium = _has_word(blob, BELGIUM_INDICATORS) or bool(_BE_POSTCODE.match(listing.location or ""))
     is_remote = _has(blob, REMOTE_INDICATORS) or listing.remote in ("remote", "hybrid")
 
     if is_belgium:

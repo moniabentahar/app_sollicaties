@@ -288,3 +288,41 @@ class TestBelgiumDetection:
     def test_belgische_in_text_counts(self):
         scored = score_listing(_listing(location="", description_summary="Het Belgische vrouwenvoetbal groeit."))
         assert "[+] Belgium" in scored.flags
+
+
+class TestTaskDomainStrictness:
+    def test_safety_role_with_generic_words_is_not_marketing(self):
+        text = ("Je zult opmerken dat communicatie met partners belangrijk is. Eventuele incidenten "
+                "voorkom je via campagnes rond veiligheid en events voor medewerkers.")
+        scored = score_listing(_listing(title="HS Manager", description_summary=text))
+        assert "[+] marketing in takenpakket" not in scored.flags
+
+    def test_marketing_required_for_task_match(self):
+        text = "Merk, campagnes, content, fans en evenementen staan centraal."
+        scored = score_listing(_listing(title="Officer", description_summary=text))
+        assert "[+] marketing in takenpakket" not in scored.flags
+
+
+class TestMarketeerTitles:
+    def test_marketeer_is_a_title_match(self):
+        assert "[+] title match" in score_listing(_listing(title="Medior Digital Marketeer")).flags
+
+    def test_events_manager_is_a_title_match(self):
+        assert "[+] title match" in score_listing(_listing(title="Events Manager")).flags
+        assert "[+] title match" in score_listing(_listing(title="Event & Experience Manager")).flags
+
+
+class TestBelgianPostcodes:
+    def test_belgian_postcode_location_counts_as_belgium(self):
+        for loc in ("3740 Bilzen", "9100 Saint-Nicolas", "B-2000 Antwerpen"):
+            assert "[+] Belgium" in score_listing(_listing(location=loc)).flags, loc
+
+    def test_dutch_postcode_is_not_belgium(self):
+        assert "[+] Belgium" not in score_listing(_listing(location="1012 AB Amsterdam-Centrum")).flags
+
+
+class TestSalesTitlesNotTaskDomain:
+    def test_sales_title_not_recognised_via_tasks(self):
+        text = "Marketing, merk, campagnes, content en events zijn deel van je job."
+        scored = score_listing(_listing(title="Founding Sales", description_summary=text))
+        assert "[+] marketing in takenpakket" not in scored.flags
