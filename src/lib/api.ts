@@ -111,12 +111,31 @@ function getBase(): Promise<string> {
 // the app working if the backend is ever reached through another tunnel.
 const TUNNEL_HEADERS: Record<string, string> = { "bypass-tunnel-reminder": "1" }
 
-async function apiUrl(path: string): Promise<string> {
-  return `${await getBase()}${path}`
+// A dead quick tunnel answers 530/502/503/404 from Cloudflare, or fails outright.
+const DEAD_TUNNEL_STATUSES = new Set([404, 502, 503, 530])
+
+/**
+ * fetch() against the backend. The tunnel URL changes when the watchdog restarts
+ * the tunnel (e.g. after a network hiccup), so an open page would keep calling a
+ * dead address. On a network error or dead-tunnel status, re-read the current
+ * URL from the gist and retry once.
+ */
+async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  const withHeaders: RequestInit = { ...init, headers: { ...TUNNEL_HEADERS, ...(init.headers ?? {}) } }
+  const base = await getBase()
+  try {
+    const res = await fetch(`${base}${path}`, withHeaders)
+    if (!DEAD_TUNNEL_STATUSES.has(res.status)) return res
+  } catch {
+    /* network error — fall through to rediscovery */
+  }
+  _basePromise = null
+  const fresh = await getBase()
+  return fetch(`${fresh}${path}`, withHeaders)
 }
 
 async function getJson<T>(path: string): Promise<T> {
-  const res = await fetch(await apiUrl(path), { headers: TUNNEL_HEADERS })
+  const res = await apiFetch(path)
   if (!res.ok) throw new Error(`${res.status} ${res.statusText} — ${path}`)
   return res.json() as Promise<T>
 }
@@ -131,7 +150,7 @@ export const api = {
   async uploadCv(file: File): Promise<Profile> {
     const form = new FormData()
     form.append("file", file)
-    const res = await fetch(await apiUrl("/api/profile/upload"), { method: "POST", body: form, headers: TUNNEL_HEADERS })
+    const res = await apiFetch("/api/profile/upload", { method: "POST", body: form, headers: TUNNEL_HEADERS })
     if (!res.ok) {
       let detail = "could not read the CV"
       try {
@@ -145,7 +164,7 @@ export const api = {
   },
 
   async runScan(): Promise<"started" | "already-running"> {
-    const res = await fetch(await apiUrl("/api/scan/run"), { method: "POST", headers: TUNNEL_HEADERS })
+    const res = await apiFetch("/api/scan/run", { method: "POST", headers: TUNNEL_HEADERS })
     if (res.status === 409) return "already-running"
     if (!res.ok) throw new Error("scan failed to start")
     return "started"
@@ -157,7 +176,7 @@ export const api = {
 
   async saveApplication(job: Listing, letter?: string, cv?: string): Promise<{ ok: boolean; job_id: string }> {
     const body = { ...job, ...(letter ? { cover_letter: letter } : {}), ...(cv ? { cv } : {}) }
-    const res = await fetch(await apiUrl("/api/applications"), {
+    const res = await apiFetch("/api/applications", {
       method: "POST",
       headers: { "Content-Type": "application/json", ...TUNNEL_HEADERS },
       body: JSON.stringify(body),
@@ -167,12 +186,12 @@ export const api = {
   },
 
   async deleteApplication(jobId: string): Promise<void> {
-    const res = await fetch(await apiUrl(`/api/applications/${jobId}`), { method: "DELETE", headers: TUNNEL_HEADERS })
+    const res = await apiFetch(`/api/applications/${jobId}`, { method: "DELETE", headers: TUNNEL_HEADERS })
     if (!res.ok) throw new Error("could not delete application")
   },
 
   async generateLetter(job: Listing): Promise<string> {
-    const res = await fetch(await apiUrl("/api/generate-letter"), {
+    const res = await apiFetch("/api/generate-letter", {
       method: "POST",
       headers: { "Content-Type": "application/json", ...TUNNEL_HEADERS },
       body: JSON.stringify(job),
@@ -183,7 +202,7 @@ export const api = {
   },
 
   async generateCv(job: Listing): Promise<string> {
-    const res = await fetch(await apiUrl("/api/generate-cv"), {
+    const res = await apiFetch("/api/generate-cv", {
       method: "POST",
       headers: { "Content-Type": "application/json", ...TUNNEL_HEADERS },
       body: JSON.stringify(job),
@@ -195,7 +214,7 @@ export const api = {
 
   /** Rewrite the CV following the user's remarks (always English, no invented facts). */
   async reviseCv(job: Listing, cv: string, remarks: string): Promise<string> {
-    const res = await fetch(await apiUrl("/api/revise-cv"), {
+    const res = await apiFetch("/api/revise-cv", {
       method: "POST",
       headers: { "Content-Type": "application/json", ...TUNNEL_HEADERS },
       body: JSON.stringify({ job, cv, remarks }),
@@ -209,7 +228,7 @@ export const api = {
   },
 
   async saveAbout(about: string): Promise<void> {
-    const res = await fetch(await apiUrl("/api/profile/about"), {
+    const res = await apiFetch("/api/profile/about", {
       method: "POST",
       headers: { "Content-Type": "application/json", ...TUNNEL_HEADERS },
       body: JSON.stringify({ about }),
@@ -220,7 +239,7 @@ export const api = {
   async uploadAbout(file: File): Promise<string> {
     const form = new FormData()
     form.append("file", file)
-    const res = await fetch(await apiUrl("/api/profile/about/upload"), { method: "POST", body: form, headers: TUNNEL_HEADERS })
+    const res = await apiFetch("/api/profile/about/upload", { method: "POST", body: form, headers: TUNNEL_HEADERS })
     if (!res.ok) {
       let detail = "kon het bestand niet lezen"
       try {
@@ -236,7 +255,7 @@ export const api = {
 
   // Fallback for sandboxes that block multipart: send the file content as base64 JSON.
   async uploadAboutBase64(filename: string, data: string): Promise<string> {
-    const res = await fetch(await apiUrl("/api/profile/about/upload-base64"), {
+    const res = await apiFetch("/api/profile/about/upload-base64", {
       method: "POST",
       headers: { "Content-Type": "application/json", ...TUNNEL_HEADERS },
       body: JSON.stringify({ filename, data }),
@@ -246,7 +265,7 @@ export const api = {
   },
 
   async analyzeFit(job: Listing): Promise<FitAdvice> {
-    const res = await fetch(await apiUrl("/api/analyze"), {
+    const res = await apiFetch("/api/analyze", {
       method: "POST",
       headers: { "Content-Type": "application/json", ...TUNNEL_HEADERS },
       body: JSON.stringify(job),

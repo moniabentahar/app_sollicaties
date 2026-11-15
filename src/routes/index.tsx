@@ -240,7 +240,7 @@ function App() {
       const result = await api.runScan();
       if (result === "started") {
         toast.success("Scan gestart!", {
-          description: "Een volledige scan duurt enkele minuten (±3-8). Laat de PC-vensters open; de pagina wordt automatisch bijgewerkt.",
+          description: "Een volledige scan duurt ongeveer 25 minuten. Laat de PC-vensters open; de pagina wordt automatisch bijgewerkt.",
           duration: 7000,
         });
         startPolling();
