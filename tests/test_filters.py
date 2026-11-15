@@ -249,3 +249,42 @@ class TestLanguageSynonyms:
     def test_unrelated_text_has_no_language_bonus(self):
         scored = score_listing(_listing(description_summary="You speak English and German."))
         assert "[+] Dutch/French required" not in scored.flags
+
+
+class TestDomainFromTasks:
+    PRO_LEAGUE = (
+        "Merk, fans & commerciële groei: je bouwt mee aan de positionering van het merk, levert input "
+        "voor marketingcampagnes, content en communicatie, vergroot de fanbeleving en werkt aan sterke "
+        "proposities voor partners. Je spreekt vlot Nederlands, Frans en Engels. Het Belgische vrouwenvoetbal."
+    )
+
+    def test_marketing_role_with_non_marketing_title_is_found_via_tasks(self):
+        scored = score_listing(_listing(title="Women's Football Officer", company="Pro League",
+                                        location="", description_summary=self.PRO_LEAGUE))
+        assert "[+] marketing in takenpakket" in scored.flags
+        assert scored.tier != TIER_LOW
+
+    def test_task_match_gets_no_title_bonus(self):
+        scored = score_listing(_listing(title="Women's Football Officer", description_summary=self.PRO_LEAGUE))
+        assert "[+] title match" not in scored.flags
+
+    def test_single_marketing_mention_is_not_enough(self):
+        scored = score_listing(_listing(title="Account Manager",
+                                        description_summary="You work with marketing on campaigns."))
+        assert "[+] marketing in takenpakket" not in scored.flags
+        assert scored.tier == TIER_LOW
+
+    def test_excluded_titles_stay_excluded(self):
+        scored = score_listing(_listing(title="Talent Acquisition Partner", description_summary=self.PRO_LEAGUE))
+        assert scored.tier == TIER_LOW
+
+
+class TestBelgiumDetection:
+    def test_word_fragments_do_not_count_as_belgium(self):
+        scored = score_listing(_listing(location="Amsterdam, Netherlands",
+                                        description_summary="An urgent, intelligent agent role; demonstrate impact."))
+        assert "[+] Belgium" not in scored.flags
+
+    def test_belgische_in_text_counts(self):
+        scored = score_listing(_listing(location="", description_summary="Het Belgische vrouwenvoetbal groeit."))
+        assert "[+] Belgium" in scored.flags

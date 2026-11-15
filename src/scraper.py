@@ -115,7 +115,7 @@ CATEGORY_MUST_HAVE = ["michaelpage", "roberthalf", "hays"]
 CATEGORY_SENIOR = ["robertwalters", "hudson"]
 CATEGORY_INTERIM = ["mindsandmore"]
 CATEGORY_OVERHEID = ["werkenvoor", "stadgent"]
-CATEGORY_BEDRIJVEN = ["belfius", "telenet", "proximus", "colruyt", "kbc", "dstny", "lapatate", "randstad"]
+CATEGORY_BEDRIJVEN = ["belfius", "telenet", "proximus", "colruyt", "kbc", "dstny", "lapatate", "randstad", "proleague"]
 # KMO's met een eigen vacaturepagina in platte HTML (scanbaar via gewone HTTP).
 CATEGORY_KMO = ["dsmkeukens"]
 
@@ -191,6 +191,11 @@ SITE_URLS: dict[str, list[str]] = {
     # Randstad (incl. Randstad Professional) — placeholder, rebuilt in _refresh_search_urls().
     "randstad": [
         "https://www.randstad.be/werknemers/jobs/q-marketing-manager/",
+    ],
+
+    # Sportorganisaties (eigen vacaturepagina) — sponsoring/sportmarketing
+    "proleague": [
+        "https://www.proleague.be/vacatures",
     ],
 
     # ── 6. KMO's Rechtstreeks (eigen vacaturepagina, platte HTML) ───────

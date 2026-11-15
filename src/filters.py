@@ -12,6 +12,7 @@ from src.profile import (
 
 # Score weights
 _TITLE_MATCH = 3
+_TASK_DOMAIN = 2         # marketing role recognised from its tasks, not its title
 _BELGIUM = 2
 _PREFERRED_LANG = 2
 _SKILL_EACH = 1
@@ -72,6 +73,28 @@ _DOMAIN_EXCLUDE_TERMS = frozenset({
     "product owner", "unified communications",
     "administratief", "administrative",
 })
+
+# A role whose title has no marketing word (e.g. "Women's Football Officer") can
+# still be a marketing/sponsorship job. It counts as domain when its TEXT covers
+# at least _TASK_DOMAIN_MIN of these topic groups — several distinct ones, so a
+# sales job that merely "works with marketing" does not qualify. Smaller bonus than a title match.
+_TASK_DOMAIN_GROUPS = (
+    ("marketing",),
+    ("merk", "brand"),
+    ("sponsor",),
+    ("communicatie", "communication", "communicat"),
+    ("campagne", "campaign"),
+    ("content",),
+    ("fans", "fanbeleving", "fan engagement", "supporters"),
+    ("partners", "partnership"),
+    ("evenement", "event"),
+)
+_TASK_DOMAIN_MIN = 5
+
+
+def _task_domain_groups(text: str) -> int:
+    return sum(1 for group in _TASK_DOMAIN_GROUPS if any(term in text for term in group))
+
 
 # Seniority, judged on the TITLE. The candidate has 15+ years and leads teams,
 # so manager/head/director roles rank above specialist- and coordinator-level ones.
@@ -161,6 +184,14 @@ def score_listing(listing: JobListing) -> ScoredListing:
         or _is_partner_role(title_norm)
         or _has_word(title_norm, frozenset({"cmo"}))
     ) and not _has(title_norm, _DOMAIN_EXCLUDE_TERMS)
+    is_task_domain = (
+        not is_domain
+        and not _has(title_norm, _DOMAIN_EXCLUDE_TERMS)
+        and _task_domain_groups(_norm(listing.description_summary)) >= _TASK_DOMAIN_MIN
+    )
+    if is_task_domain:
+        score += _TASK_DOMAIN
+        flags.append("[+] marketing in takenpakket")
     if is_domain:
         score += _TITLE_MATCH
         flags.append("[+] title match")
@@ -173,7 +204,8 @@ def score_listing(listing: JobListing) -> ScoredListing:
             flags.append("[!] below level")
 
     # --- Geography ---
-    is_belgium = _has(blob, BELGIUM_INDICATORS)
+    # Whole words: as substrings "gent" hit "agent"/"urgent" and "mons" hit "demonstrate".
+    is_belgium = _has_word(blob, BELGIUM_INDICATORS)
     is_remote = _has(blob, REMOTE_INDICATORS) or listing.remote in ("remote", "hybrid")
 
     if is_belgium:
@@ -209,7 +241,7 @@ def score_listing(listing: JobListing) -> ScoredListing:
     # *score* below the consider threshold too — not just its tier — so even a
     # score-only client (an older frontend that recomputes the badge from score)
     # still shows it as low without any redeploy.
-    if not is_domain:
+    if not (is_domain or is_task_domain):
         score = min(score, _NON_DOMAIN_SCORE_CAP)
     # Junior/assistant roles are likewise never a match for a senior candidate.
     if is_junior:
@@ -219,9 +251,9 @@ def score_listing(listing: JobListing) -> ScoredListing:
     # consider; everything else is low no matter how high the raw score was.
     if is_junior:
         tier = TIER_LOW
-    elif is_domain and score >= _TIER_THRESHOLDS[TIER_STRONG]:
+    elif (is_domain or is_task_domain) and score >= _TIER_THRESHOLDS[TIER_STRONG]:
         tier = TIER_STRONG
-    elif is_domain and score >= _TIER_THRESHOLDS[TIER_CONSIDER]:
+    elif (is_domain or is_task_domain) and score >= _TIER_THRESHOLDS[TIER_CONSIDER]:
         tier = TIER_CONSIDER
     else:
         tier = TIER_LOW

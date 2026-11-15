@@ -38,12 +38,18 @@ class TestFetchDescriptions:
         assert out[0].description_summary == "Brand manager role"
 
     def test_page_without_jobposting_is_not_used_for_scoring(self, monkeypatch):
-        page = "<html><body><nav>Menu marketing</nav><main>Communicatiespecialist gezocht</main></body></html>"
+        page = "<html><body><nav>Menu marketing</nav><div>Communicatiespecialist gezocht</div></body></html>"
         monkeypatch.setattr(enrich, "_get", lambda *a, **k: page)
         url = "https://werkenvoor.be/nl/jobs/1"
         out, texts = enrich.fetch_descriptions([_listing(url, "werkenvoor")])
         assert out[0].description_summary == ""
         assert texts[url] == "Communicatiespecialist gezocht"
+
+    def test_main_element_text_is_used_for_scoring(self, monkeypatch):
+        page = "<html><body><nav>Menu</nav><main>Women's Football Officer: merk en fans</main></body></html>"
+        monkeypatch.setattr(enrich, "_get", lambda *a, **k: page)
+        out, _ = enrich.fetch_descriptions([_listing("https://www.proleague.be/x", "proleague")])
+        assert out[0].description_summary == "Women's Football Officer: merk en fans"
 
     def test_fetch_failure_leaves_listing_unchanged(self, monkeypatch):
         monkeypatch.setattr(enrich, "_get", lambda *a, **k: "")

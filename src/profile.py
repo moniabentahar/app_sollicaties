@@ -101,6 +101,7 @@ EXCLUDE_KEYWORDS: frozenset[str] = frozenset({
 
 BELGIUM_INDICATORS: frozenset[str] = frozenset({
     "belgium", "belgique", "belgië", "belgie",
+    "belgian", "belgisch", "belgische", "belge", "belges",
     "brussels", "bruxelles", "brussel",
     "antwerp", "anvers", "antwerpen",
     "ghent", "gent",

@@ -119,6 +119,10 @@ def _page_text(page: str) -> str:
     return "\n".join(ln for ln in lines if ln)
 
 
+def _has_main(page: str) -> bool:
+    return bool(re.search(r"<main[\s>]", page, re.I))
+
+
 def _fetch_detail(listing: JobListing) -> tuple[str, bool]:
     """(vacancy text, is_clean). Clean text is the vacancy itself and may be used
     for scoring; unclean text is a whole page, only fit for the summarizer."""
@@ -133,7 +137,11 @@ def _fetch_detail(listing: JobListing) -> tuple[str, bool]:
     if not page:
         return "", False
     clean = _jsonld_text(page)
-    return (clean, True) if clean else (_page_text(page), False)
+    if clean:
+        return clean, True
+    # A page with a <main> element: its text (menus/header/footer stripped) is
+    # the vacancy itself, clean enough to score on (e.g. proleague.be).
+    return _page_text(page), _has_main(page)
 
 
 def fetch_descriptions(listings: list[JobListing]) -> tuple[list[JobListing], dict[str, str]]:

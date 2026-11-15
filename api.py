@@ -75,7 +75,8 @@ APPLIED_DB = Path("docs/applied_jobs.json")
 SCAN_TOKEN = os.getenv("SCAN_TOKEN", "").strip()
 
 # Hard cap on a single scan run so a hanging site can't block scans forever.
-SCAN_TIMEOUT_SECONDS = int(os.getenv("SCAN_TIMEOUT_SECONDS", "900"))
+# Scraping takes ~13 min, fetching vacancy texts + summaries ~5-10 min more.
+SCAN_TIMEOUT_SECONDS = int(os.getenv("SCAN_TIMEOUT_SECONDS", "3600"))
 
 _scan_running = False
 

@@ -102,6 +102,14 @@ def run(
     listings = scrape_sites(api_key, sites=sites, verbose=verbose, use_browser=browser)
     console.print(f"\nUnique listings found: [cyan]{len(listings)}[/cyan]")
 
+    output_dir.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now().strftime("%Y-%m-%d_%H%M")
+    site_tag = f"_{site}" if site else "_all"
+    csv_path = output_dir / f"scan{site_tag}_{stamp}.csv"
+    # Save the scraped results first: fetching vacancy texts and summaries takes
+    # minutes, and a timeout there must never lose the whole scan again.
+    write_csv(filter_and_score(listings), csv_path)
+
     listings, detail_texts = fetch_descriptions(listings)
     scored = summarize_listings(filter_and_score(listings), detail_texts, api_key)
     visible = [s for s in scored if s.score >= min_score]
@@ -109,10 +117,6 @@ def run(
     if not csv_only:
         print_summary(visible, total_scraped=len(listings))
 
-    output_dir.mkdir(parents=True, exist_ok=True)
-    stamp = datetime.now().strftime("%Y-%m-%d_%H%M")
-    site_tag = f"_{site}" if site else "_all"
-    csv_path = output_dir / f"scan{site_tag}_{stamp}.csv"
     write_csv(scored, csv_path)   # always write full unfiltered set to CSV
 
 
