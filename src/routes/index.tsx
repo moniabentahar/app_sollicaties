@@ -373,8 +373,10 @@ function App() {
         if (filterTier !== "all" && l.tier !== filterTier) return false;
         if (filterSite !== "all" && l.source_site !== filterSite) return false;
         if (q) {
-          const hay = `${l.title} ${l.company} ${l.location ?? ""}`.toLowerCase();
-          if (!hay.includes(q)) return false;
+          // Also match the source and ignore spaces, so "proleague" finds "Pro League".
+          const hay = `${l.title} ${l.company} ${l.location ?? ""} ${l.source_site ?? ""}`.toLowerCase();
+          const squash = (s: string) => s.replace(/\s+/g, "");
+          if (!hay.includes(q) && !squash(hay).includes(squash(q))) return false;
         }
         return true;
       })
